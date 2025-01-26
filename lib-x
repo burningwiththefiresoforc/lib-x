@@ -70,6 +70,9 @@ DISOWN_READING_PROCESS: $DISOWN_READING_PROCESS
 
 # the number of random books
 NO_OF_RANDOM_BOOKS: $NO_OF_RANDOM_BOOKS
+
+# preferred file explorer when adding books etc
+FILE_EXPLORER: $FILE_EXPLORER
 "
 }
 load_config() {
@@ -88,6 +91,9 @@ load_config() {
 
   PRETTY_PRINT="$(awk -F': ' '/^PRETTY_PRINT:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
   [ -z "$PRETTY_PRINT" ] && PRETTY_PRINT="true"
+
+  FILE_EXPLORER="$(awk -F': ' '/^FILE_EXPLORER:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
+  [ -z "$FILE_EXPLORER" ] && if command -v "yazi" &>/dev/null; then FILE_EXPLORER="yazi"; else FILE_EXPLORER="fzf"; fi
 
   IMAGE_RENDERER="$(awk -F': ' '/^IMAGE_RENDERER:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
   [ -z "$IMAGE_RENDERER" ] && IMAGE_RENDERER=$([ -n "$KITTY_WINDOW_ID" ] && echo "icat" || echo "chafa")
@@ -150,10 +156,10 @@ if ! [ -z {} ] && ! [ {} = \"Exit\" ] && ! [ {} = \"Back\" ];then
 
   ll=1
   while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
-  printf \"\${MAGENTA}\${BOLD}Title:\${RESET} \$book_title\n\";
-  printf \"\${MAGENTA}\${BOLD}Authors:\${RESET} \$book_authors\n\";
-  printf \"\${MAGENTA}\${BOLD}Tags:\${RESET} \$book_tags\n\";
-  printf \"\${MAGENTA}\${BOLD}Languages:\${RESET} \$book_langs\n\";
+  printf \"\${MAGENTA}\${BOLD_LIB_X}Title:\${RESET} \$book_title\n\";
+  printf \"\${MAGENTA}\${BOLD_LIB_X}Authors:\${RESET} \$book_authors\n\";
+  printf \"\${MAGENTA}\${BOLD_LIB_X}Tags:\${RESET} \$book_tags\n\";
+  printf \"\${MAGENTA}\${BOLD_LIB_X}Languages:\${RESET} \$book_langs\n\";
 
   ll=1
   while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
@@ -169,9 +175,9 @@ init_pretty_print() {
     RED=$(tput setaf 1)
     MAGENTA="\x1b[38;2;215;0;95m"
     CYAN=$(tput setaf 6)
-    BOLD=$(tput bold)
+    BOLD_LIB_X=$(tput bold)
     RESET=$(tput sgr0)
-    export RED MAGENTA BOLD RESET CYAN
+    export RED MAGENTA BOLD_LIB_X RESET CYAN
   fi
 }
 
@@ -193,7 +199,7 @@ confirm() {
     gum confirm "$1"
   else
     echo "$CLI_HEADER" >/dev/stderr
-    printf 'Are you sure you want to proceed [y/N]?: ' >/dev/stderr
+    printf "$1" >/dev/stderr
     read -r CONFIRMED
     case "$CONFIRMED" in
     y | Y)
@@ -205,6 +211,7 @@ confirm() {
     esac
   fi
 }
+
 core_dep_ch() {
   ! command -v "calibre" >/dev/null 2>&1 && echo calibre is not installed and is a core dep please install it to proceed && exit 1
   ! command -v "jq" >/dev/null 2>&1 && echo jq is not installed and is a core dep please install it to proceed && exit 1
@@ -212,7 +219,6 @@ core_dep_ch() {
 }
 send_notification() {
   echo "$1" >&2 && sleep "$NOTIFICATION_DURATION"
-  clear
   return 0
 }
 
@@ -306,12 +312,8 @@ check_update() {
   fi
 }
 
-sanitize_title() {
-  sed 's/\\\/\\\\\\\/g'
-}
-
 launcher() {
-  case "$(echo "$PREFERRED_SELECTOR" | tr '[:upper:]' '[:lower:]')" in
+  case "$PREFERRED_SELECTOR" in
   rofi)
     if [ -z "$ROFI_THEME" ]; then
       while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
@@ -361,22 +363,20 @@ user_lists_manager() {
   "Reading")
     if [ "$2" = "add" ]; then
       if grep "^${title}\$" -s -q <"$DB_READING_LIST"; then
-        echo Already in Reading List
-        sleep 1
+        send_notification "Already in Reading List"
       else
-        echo Adding to reading list...
+        send_notification Adding to reading list...
         echo "$title" >>"$DB_READING_LIST"
       fi
     elif [ "$2" = "remove" ]; then
       if grep "^$title\$" -q <"$DB_READING_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          echo "removing from $1 List..."
+          send_notification "removing from $1 List..."
           updated_list="$(grep --invert-match "^$title\$" <"$DB_READING_LIST")"
           echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_READING_LIST"
         fi
       else
-        echo "$title is not in your $1 List"
-        sleep 1
+        send_notification "$title is not in your $1 List"
       fi
     fi
     ;;
@@ -384,23 +384,21 @@ user_lists_manager() {
   "Paused")
     if [ "$2" = "add" ]; then
       if grep "^${title}\$" -s -q <"$DB_PAUSED_LIST"; then
-        echo Already in paused List
-        sleep 1
+        send_notification "Already in paused List"
       else
-        echo Adding to paused list...
+        send_notification "Adding to paused list..."
         echo "$title" >>"$DB_PAUSED_LIST"
       fi
     elif [ "$2" = "remove" ]; then
       if grep "^$title\$" -q <"$DB_PAUSED_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          echo "removing from $1 List..."
+          send_notification "removing from $1 List..."
           updated_list="$(grep --invert-match "^$title\$" <"$DB_PAUSED_LIST")"
           echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_PAUSED_LIST"
 
         fi
       else
-        echo "$title is not in your $1 List"
-        sleep 1
+        send_notification "$title is not in your $1 List"
       fi
     fi
     ;;
@@ -408,44 +406,40 @@ user_lists_manager() {
   "Re-reading")
     if [ "$2" = "add" ]; then
       if grep "^${title}\$" -s -q <"$DB_RE_READING_LIST"; then
-        echo Already in re-reading List
-        sleep 1
+        send_notification "Already in re-reading List"
       else
-        echo Adding to re-reading list...
+        send_notification "Adding to re-reading list..."
         echo "$title" >>"$DB_RE_READING_LIST"
       fi
     elif [ "$2" = "remove" ]; then
       if grep "^$title\$" -q <"$DB_RE_READING_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          echo "removing from $1 List..."
+          send_notification "removing from $1 List..."
           updated_list="$(grep --invert-match "^$title\$" <"$DB_RE_READING_LIST")"
           echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_RE_READING_LIST"
         fi
       else
-        echo "$title is not in your $1 List"
-        sleep 1
+        send_notification "$title is not in your $1 List"
       fi
     fi
     ;;
   "Completed")
     if [ "$2" = "add" ]; then
       if grep "^${title}\$" -s -q <"$DB_COMPLETED_LIST"; then
-        echo Already in completed List
-        sleep 1
+        send_notification "Already in completed List"
       else
-        echo Adding to completed list...
+        send_notification "Adding to completed list..."
         echo "$title" >>"$DB_COMPLETED_LIST"
       fi
     elif [ "$2" = "remove" ]; then
       if grep "^$title\$" -q <"$DB_COMPLETED_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          echo "removing from $1 List..."
+          send_notification "removing from $1 List..."
           updated_list="$(grep --invert-match "^$title\$" <"$DB_COMPLETED_LIST")"
           echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_COMPLETED_LIST"
         fi
       else
-        echo "$title is not in your $1 List"
-        sleep 1
+        send_notification "$title is not in your $1 List"
       fi
     fi
     ;;
@@ -551,6 +545,7 @@ ${CYAN}${RESET}  All
 %s
 ${CYAN}${RESET}  Dropped
 ${CYAN}${RESET}  Edit Config
+${CYAN}${RESET}  Miscellaneous
 ${RED}󰈆${RESET}  Exit" "$_categories" | launcher "Select Action" | sed 's/^.  //g')
     fi
     case "$action" in
@@ -689,11 +684,52 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher "Select Action" | sed 's/^. 
     # ---- others ----
     "Edit Config")
       $PREFERRED_EDITOR "$CLI_CONFIG_FILE"
-      main
+      continue
       load_config
       ;;
     "Exit")
       byebye
+      ;;
+    Miscellaneous)
+      while true; do
+
+        local miscellaneous_action
+        local books_path
+        miscellaneous_action=$(printf "\
+${CYAN}󰗛${RESET}  Add Books
+${CYAN}${RESET}  Back
+${RED}󰈆${RESET}  Exit" | launcher "Select Action" | sed 's/^.  //g')
+        case "$miscellaneous_action" in
+        Add\ Book)
+          if [ "$FILE_EXPLORER" = "yazi" ]; then
+            yazi --cwd-file "$CLI_CACHE_DIR/books_path"
+            books_path=$(cat "$CLI_CACHE_DIR/books_path")
+          elif [ "$FILE_EXPLORER" = "fzf" ]; then
+            books_path=$(find $HOME -type d | fzf)
+          else
+            send_notification "Unsupported file explorer"
+            continue
+          fi
+
+          if confirm "Would you like to input custom args (default: calibre_db add '$books_path')"; then
+            clear
+            calibredb add --help
+            custom_args=$(prompt "Enter your custom args separated by spaces")
+          fi
+          calibredb add "$books_path" $custom_args || send_notification "Failed to add books"
+          ;;
+        Back)
+          break
+          ;;
+        Exit)
+          byebye
+          ;;
+        *)
+          send_notification "Invalid action"
+          ;;
+        esac
+      done
+      continue
       ;;
     *)
       send_notification 'invalid action'
@@ -707,7 +743,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher "Select Action" | sed 's/^. 
       # ---- select book ----
       SHELL="bash"
       export SHELL
-      export -f fzf_preview init_pretty_print sanitize_title
+      export -f fzf_preview init_pretty_print
       if [ "$ENABLE_PREVIEW" = "true" ]; then
         title=$(printf "%s\nBack\nExit" "$titles" | launcher_with_preview "Select Book" | tr -d "\n")
       else
