@@ -23,8 +23,8 @@ CLI_CACHE_DIR="$HOME/.cache/$CLI_NAME"
 [ -d "$CLI_CACHE_DIR" ] || mkdir -p "$CLI_CACHE_DIR"
 [ -d "$CLI_DBS_DIR" ] || mkdir -p "$CLI_DBS_DIR"
 
-CALIBRE_DB_JSON="$CLI_CACHE_DIR/calibre_db.json"
-CALIBRE_CATEGORIES_CSV="$CLI_CACHE_DIR/calibre_categories.csv"
+CALIBRE_DB_JSON_FILE="$CLI_CACHE_DIR/calibre_db.json"
+CALIBRE_CATEGORIES_CSV_FILE="$CLI_CACHE_DIR/calibre_categories.csv"
 
 print_config() {
   echo "\
@@ -133,7 +133,7 @@ load_config() {
 
 LIB_X_PREVIEW="
 if ! [ -z {} ] && ! [ {} = \"Exit\" ] && ! [ {} = \"Back\" ];then
-  CALIBRE_DB=\"\$(cat \"$CALIBRE_DB_JSON\")\";
+  CALIBRE_DB=\"\$(cat \"$CALIBRE_DB_JSON_FILE\")\";
   title=\"\$(echo {} | sed 's/\\\/\\\\\\\/g;')\";
   book=\$(echo \"\$CALIBRE_DB\" |jq -r \"map(select(.title == \\\"\$title\\\")) | .[0]\")
   book_title=\$(echo  \"\$book\"|jq -r '.title');
@@ -277,7 +277,7 @@ update_script() {
     fi
   fi
 
-  update=$(curl -s "https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x" || byebye 1)
+  update=$(curl -s "https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x" || send_notification "Failed to fetch latest" && byebye 1)
   update="$(printf '%s\n' "$update" | diff -u "$lib_x_path" - 2>/dev/null)"
   if [ -z "$update" ]; then
     send_notification "Script is up to date :)"
@@ -738,7 +738,7 @@ ${RED}󰈆${RESET}  Exit" | launcher "Select Book Action" | sed 's/^.  //g'
           fi
 
           # open book
-          book=$(cat "$CALIBRE_DB_JSON" | jq "map(select(.title == \"$title\")) | .[0]")
+          book=$(cat "$CALIBRE_DB_JSON_FILE" | jq "map(select(.title == \"$title\")) | .[0]")
           book_path="$(echo "$book" | jq -r '.formats[0]')"
           if command -v "open"; then
             open "$book_path" &>/dev/null &
@@ -1014,26 +1014,26 @@ Example:
 done
 if [ -n "$SORT_BY" ] && [ -n "$SEARCH" ]; then
   CALIBRE_DB="$(calibredb list --for-machine --fields all --search "$SEARCH" --sort-by "$SORT_BY")"
-  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
+  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
 elif [ -n "$SORT_BY" ]; then
   CALIBRE_DB="$(calibredb list --for-machine --fields all --sort-by "$SORT_BY")"
-  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
+  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
 elif [ -n "$SEARCH" ]; then
   CALIBRE_DB="$(calibredb list --for-machine --fields all --search "$SEARCH")"
-  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
+  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
 else
-  if ! [ -s "$CALIBRE_DB_JSON" ] || ! [ -s "$CALIBRE_CATEGORIES_CSV" ] || ! [ -s "$CLI_CACHE_DIR/last_db_timestamp" ] || ! [ "$(cat "$CLI_CACHE_DIR/last_db_timestamp")" = "$(command ls -ld "$CALIBRE_LIBRARY_PATH")" ]; then
-    calibredb list --for-machine --fields all >"$CALIBRE_DB_JSON"
-    CALIBRE_DB="$(cat "$CALIBRE_DB_JSON")"
+  if ! [ -s "$CALIBRE_DB_JSON_FILE" ] || ! [ -s "$CALIBRE_CATEGORIES_CSV_FILE" ] || ! [ -s "$CLI_CACHE_DIR/last_db_timestamp" ] || ! [ "$(cat "$CLI_CACHE_DIR/last_db_timestamp")" = "$(command ls -ld "$CALIBRE_LIBRARY_PATH")" ]; then
+    calibredb list --for-machine --fields all >"$CALIBRE_DB_JSON_FILE"
+    CALIBRE_DB="$(cat "$CALIBRE_DB_JSON_FILE")"
 
-    calibredb list_categories --csv >"$CALIBRE_CATEGORIES_CSV"
+    calibredb list_categories --csv >"$CALIBRE_CATEGORIES_CSV_FILE"
 
-    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
+    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
     command ls -ld "$CALIBRE_LIBRARY_PATH" >"$CLI_CACHE_DIR/last_db_timestamp"
 
   else
-    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
-    CALIBRE_DB="$(cat "$CALIBRE_DB_JSON")"
+    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
+    CALIBRE_DB="$(cat "$CALIBRE_DB_JSON_FILE")"
   fi
 fi
 
