@@ -74,14 +74,14 @@ NO_OF_RANDOM_BOOKS: $NO_OF_RANDOM_BOOKS
 }
 load_config() {
   ! [ -f "$CLI_CONFIG_DIR/${CLI_NAME}.conf" ] && touch "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
-  READING_LIST_DB="$CLI_DBS_DIR/reading_list"
-  PAUSED_LIST_DB="$CLI_DBS_DIR/paused_list"
-  PLANING_LIST_DB="$CLI_DBS_DIR/planing_list"
-  RE_READING_LIST_DB="$CLI_DBS_DIR/re_reading_list"
-  COMPLETED_LIST_DB="$CLI_DBS_DIR/completed_list"
-  DROPPED_LIST_DB="$CLI_DBS_DIR/dropped_list"
-  DOCS_LIST_DB="$CLI_DBS_DIR/docs_list"
-  RECENT_DB="$CLI_DBS_DIR/recent"
+  DB_READING_LIST="$CLI_DBS_DIR/reading_list"
+  DB_PAUSED_LIST="$CLI_DBS_DIR/paused_list"
+  DB_PLANING_LIST="$CLI_DBS_DIR/planing_list"
+  DB_RE_READING_LIST="$CLI_DBS_DIR/re_reading_list"
+  DB_COMPLETED_LIST="$CLI_DBS_DIR/completed_list"
+  DB_DROPPED_LIST="$CLI_DBS_DIR/dropped_list"
+  DB_DOCS_LIST="$CLI_DBS_DIR/docs_list"
+  DB_RECENT_LIST="$CLI_DBS_DIR/recent"
 
   CALIBRE_LIBRARY_PATH="$(awk -F': ' '/^CALIBRE_LIBRARY_PATH:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
   [ -z "$CALIBRE_LIBRARY_PATH" ] && CALIBRE_LIBRARY_PATH="$HOME/Calibre Library"
@@ -360,19 +360,19 @@ user_lists_manager() {
   case "$1" in
   "Reading")
     if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$READING_LIST_DB"; then
+      if grep "^${title}\$" -s -q <"$DB_READING_LIST"; then
         echo Already in Reading List
         sleep 1
       else
         echo Adding to reading list...
-        echo "$title" >>"$READING_LIST_DB"
+        echo "$title" >>"$DB_READING_LIST"
       fi
     elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$READING_LIST_DB"; then
+      if grep "^$title\$" -q <"$DB_READING_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
           echo "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$READING_LIST_DB")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$READING_LIST_DB"
+          updated_list="$(grep --invert-match "^$title\$" <"$DB_READING_LIST")"
+          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_READING_LIST"
         fi
       else
         echo "$title is not in your $1 List"
@@ -383,19 +383,19 @@ user_lists_manager() {
 
   "Paused")
     if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$PAUSED_LIST_DB"; then
+      if grep "^${title}\$" -s -q <"$DB_PAUSED_LIST"; then
         echo Already in paused List
         sleep 1
       else
         echo Adding to paused list...
-        echo "$title" >>"$PAUSED_LIST_DB"
+        echo "$title" >>"$DB_PAUSED_LIST"
       fi
     elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$PAUSED_LIST_DB"; then
+      if grep "^$title\$" -q <"$DB_PAUSED_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
           echo "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$PAUSED_LIST_DB")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$PAUSED_LIST_DB"
+          updated_list="$(grep --invert-match "^$title\$" <"$DB_PAUSED_LIST")"
+          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_PAUSED_LIST"
 
         fi
       else
@@ -407,19 +407,19 @@ user_lists_manager() {
 
   "Re-reading")
     if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$RE_READING_LIST_DB"; then
+      if grep "^${title}\$" -s -q <"$DB_RE_READING_LIST"; then
         echo Already in re-reading List
         sleep 1
       else
         echo Adding to re-reading list...
-        echo "$title" >>"$RE_READING_LIST_DB"
+        echo "$title" >>"$DB_RE_READING_LIST"
       fi
     elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$RE_READING_LIST_DB"; then
+      if grep "^$title\$" -q <"$DB_RE_READING_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
           echo "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$RE_READING_LIST_DB")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$RE_READING_LIST_DB"
+          updated_list="$(grep --invert-match "^$title\$" <"$DB_RE_READING_LIST")"
+          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_RE_READING_LIST"
         fi
       else
         echo "$title is not in your $1 List"
@@ -429,19 +429,19 @@ user_lists_manager() {
     ;;
   "Completed")
     if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$COMPLETED_LIST_DB"; then
+      if grep "^${title}\$" -s -q <"$DB_COMPLETED_LIST"; then
         echo Already in completed List
         sleep 1
       else
         echo Adding to completed list...
-        echo "$title" >>"$COMPLETED_LIST_DB"
+        echo "$title" >>"$DB_COMPLETED_LIST"
       fi
     elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$COMPLETED_LIST_DB"; then
+      if grep "^$title\$" -q <"$DB_COMPLETED_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
           echo "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$COMPLETED_LIST_DB")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$COMPLETED_LIST_DB"
+          updated_list="$(grep --invert-match "^$title\$" <"$DB_COMPLETED_LIST")"
+          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_COMPLETED_LIST"
         fi
       else
         echo "$title is not in your $1 List"
@@ -452,19 +452,19 @@ user_lists_manager() {
 
   "Docs")
     if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$DOCS_LIST_DB"; then
+      if grep "^${title}\$" -s -q <"$DB_DOCS_LIST"; then
         echo Already in docs List
         sleep 1
       else
         echo Adding to docs list...
-        echo "$title" >>"$DOCS_LIST_DB"
+        echo "$title" >>"$DB_DOCS_LIST"
       fi
     elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$DOCS_LIST_DB"; then
+      if grep "^$title\$" -q <"$DB_DOCS_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
           echo "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$DOCS_LIST_DB")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DOCS_LIST_DB"
+          updated_list="$(grep --invert-match "^$title\$" <"$DB_DOCS_LIST")"
+          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_DOCS_LIST"
         fi
       else
         echo "$title is not in your $1 List"
@@ -475,19 +475,19 @@ user_lists_manager() {
 
   "Planing")
     if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$PLANING_LIST_DB"; then
+      if grep "^${title}\$" -s -q <"$DB_PLANING_LIST"; then
         echo Already in planing List
         sleep 1
       else
         echo Adding to planing list...
-        echo "$title" >>"$PLANING_LIST_DB"
+        echo "$title" >>"$DB_PLANING_LIST"
       fi
     elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$PLANING_LIST_DB"; then
+      if grep "^$title\$" -q <"$DB_PLANING_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
           echo "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$PLANING_LIST_DB")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$PLANING_LIST_DB"
+          updated_list="$(grep --invert-match "^$title\$" <"$DB_PLANING_LIST")"
+          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_PLANING_LIST"
         fi
       else
         echo "$title is not in your $1 List"
@@ -497,19 +497,19 @@ user_lists_manager() {
     ;;
   "Dropped")
     if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$DROPPED_LIST_DB"; then
+      if grep "^${title}\$" -s -q <"$DB_DROPPED_LIST"; then
         echo Already in dropped List
         sleep 1
       else
         echo Adding to dropped list...
-        echo "$title" >>"$DROPPED_LIST_DB"
+        echo "$title" >>"$DB_DROPPED_LIST"
       fi
     elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$DROPPED_LIST_DB"; then
+      if grep "^$title\$" -q <"$DB_DROPPED_LIST"; then
         if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
           echo "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$DROPPED_LIST_DB")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DROPPED_LIST_DB"
+          updated_list="$(grep --invert-match "^$title\$" <"$DB_DROPPED_LIST")"
+          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_DROPPED_LIST"
         fi
       else
         echo "$title is not in your $1 List"
@@ -556,58 +556,58 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher "Select Action" | sed 's/^. 
     case "$action" in
     # ---- user lists ----
     "Reading-List")
-      if [ -s "$READING_LIST_DB" ]; then
-        titles="$(cat "$READING_LIST_DB")"
+      if [ -s "$DB_READING_LIST" ]; then
+        titles="$(cat "$DB_READING_LIST")"
       else
         send_notification "You dont have anything in your reading list" && continue
       fi
       ;;
     "Recent")
-      if [ -s "$RECENT_DB" ]; then
-        titles="$(tac "$RECENT_DB")"
+      if [ -s "$DB_RECENT" ]; then
+        titles="$(tac "$DB_RECENT")"
       else
         send_notification "You dont have anything in your recent list" && continue
       fi
       ;;
     "Dropped")
-      if [ -s "$DROPPED_LIST_DB" ]; then
-        titles="$(cat "$DROPPED_LIST_DB")"
+      if [ -s "$DB_DROPPED_LIST" ]; then
+        titles="$(cat "$DB_DROPPED_LIST")"
       else
         send_notification "You dont have anything in your dropped list" && continue
       fi
 
       ;;
     "Paused")
-      if [ -s "$PAUSED_LIST_DB" ]; then
-        titles="$(cat "$PAUSED_LIST_DB")"
+      if [ -s "$DB_PAUSED_LIST" ]; then
+        titles="$(cat "$DB_PAUSED_LIST")"
       else
         send_notification "You dont have anything in your paused list" && continue
       fi
       ;;
     "Completed")
-      if [ -s "$COMPLETED_LIST_DB" ]; then
-        titles="$(cat "$COMPLETED_LIST_DB")"
+      if [ -s "$DB_COMPLETED_LIST" ]; then
+        titles="$(cat "$DB_COMPLETED_LIST")"
       else
         send_notification "You dont have anything in your completed list" && continue
       fi
       ;;
     "Re-reading")
-      if [ -s "$RE_READING_LIST_DB" ]; then
-        titles="$(cat "$RE_READING_LIST_DB")"
+      if [ -s "$DB_RE_READING_LIST" ]; then
+        titles="$(cat "$DB_RE_READING_LIST")"
       else
         send_notification "You dont have anything in your re-reading list" && continue
       fi
       ;;
     "Planing")
-      if [ -s "$PLANING_LIST_DB" ]; then
-        titles="$(cat "$PLANING_LIST_DB")"
+      if [ -s "$DB_PLANING_LIST" ]; then
+        titles="$(cat "$DB_PLANING_LIST")"
       else
         send_notification "You dont have anything in your planning list" && continue
       fi
       ;;
     "Docs")
-      if [ -s "$DOCS_LIST_DB" ]; then
-        titles="$(cat "$DOCS_LIST_DB")"
+      if [ -s "$DB_DOCS_LIST" ]; then
+        titles="$(cat "$DB_DOCS_LIST")"
       else
         send_notification "You dont have anything in your docs list" && continue
       fi
@@ -732,9 +732,9 @@ ${RED}󰈆${RESET}  Exit" | launcher "Select Book Action" | sed 's/^.  //g'
         "Read")
           # update recent list
           if [ "$UPDATE_RECENT" = "true" ]; then
-            updated_recent_file_contents=$(grep --invert-match -s "^$title\$" <"$RECENT_DB" | grep --extended-regexp "[[:alnum:]]+" | tail -n "$NO_OF_RECENT")
-            echo "$updated_recent_file_contents" >"$RECENT_DB"
-            echo "$title" >>"$RECENT_DB"
+            updated_recent_file_contents=$(grep --invert-match -s "^$title\$" <"$DB_RECENT" | grep --extended-regexp "[[:alnum:]]+" | tail -n "$NO_OF_RECENT")
+            echo "$updated_recent_file_contents" >"$DB_RECENT"
+            echo "$title" >>"$DB_RECENT"
           fi
 
           # open book
