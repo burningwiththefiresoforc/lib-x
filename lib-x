@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#A script written by BeneX-254 in September 4, 2024 under GNU GENERAL PUBLIC LICENSE
+#A script written by Benexl in September 4, 2024 under GNU GENERAL PUBLIC LICENSE
 
 CLI_HEADER='
 ██╗░░░░░██╗██████╗░░░░░░░██╗░░██╗
@@ -11,7 +11,7 @@ CLI_HEADER='
 '
 
 CLI_NAME="lib-x"
-CLI_VERSION="0.1.0"
+CLI_VERSION="0.2.0"
 CLI_AUTHOR="Benexl"
 
 CLI_DIR="$(dirname "$(realpath "$0")")"
