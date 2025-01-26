@@ -1014,10 +1014,13 @@ Example:
 done
 if [ -n "$SORT_BY" ] && [ -n "$SEARCH" ]; then
   CALIBRE_DB="$(calibredb list --for-machine --fields all --search "$SEARCH" --sort-by "$SORT_BY")"
+  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
 elif [ -n "$SORT_BY" ]; then
   CALIBRE_DB="$(calibredb list --for-machine --fields all --sort-by "$SORT_BY")"
+  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
 elif [ -n "$SEARCH" ]; then
   CALIBRE_DB="$(calibredb list --for-machine --fields all --search "$SEARCH")"
+  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
 else
   if ! [ -s "$CALIBRE_DB_JSON" ] || ! [ -s "$CALIBRE_CATEGORIES_CSV" ] || ! [ -s "$CLI_CACHE_DIR/last_db_timestamp" ] || ! [ "$(cat "$CLI_CACHE_DIR/last_db_timestamp")" = "$(command ls -ld "$CALIBRE_LIBRARY_PATH")" ]; then
     calibredb list --for-machine --fields all >"$CALIBRE_DB_JSON"
