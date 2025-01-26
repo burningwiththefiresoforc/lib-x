@@ -89,6 +89,8 @@ load_config() {
   DOCS_LIST_DB="$CLI_DBS_DIR/docs_list"
   RECENT_DB="$CLI_DBS_DIR/recent"
   IMAGE_RENDERER="icat"
+  NOTIFICATION_DURATION=3
+  PRETTY_PRINT="true"
 
   CALIBRE_LIBRARY_PATH="$HOME/Calibre Library"
   export IMAGE_RENDERER
@@ -130,7 +132,7 @@ load_config() {
 }
 
 LIB_X_PREVIEW="
-if ! [ -z {} ] && ! [ {} = \"Exit\" ] && ! [ {} = \"Main Menu\" ];then
+if ! [ -z {} ] && ! [ {} = \"Exit\" ] && ! [ {} = \"Back\" ];then
   CALIBRE_DB=\"\$(cat \"$CALIBRE_DB_JSON\")\";
   title=\"\$(echo {} | sed 's/\\\/\\\\\\\/g;')\";
   book=\$(echo \"\$CALIBRE_DB\" |jq -r \"map(select(.title == \\\"\$title\\\")) | .[0]\")
@@ -169,6 +171,7 @@ init_pretty_print() {
     CYAN=$(tput setaf 6)
     BOLD=$(tput bold)
     RESET=$(tput sgr0)
+    export RED MAGENTA BOLD RESET CYAN
   fi
 }
 
@@ -179,6 +182,8 @@ core_dep_ch() {
 }
 send_notification() {
   echo "$1" >&2 && sleep "$NOTIFICATION_DURATION"
+  clear
+  return 0
 }
 
 fzf_preview() {
@@ -538,28 +543,61 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
     case "$action" in
     # ---- user lists ----
     "Reading-List")
-      titles="$(cat "$READING_LIST_DB")"
+      if [ -s "$READING_LIST_DB" ]; then
+        titles="$(cat "$READING_LIST_DB")"
+      else
+        send_notification "You dont have anything in your reading list" && continue
+      fi
       ;;
     "Recent")
-      titles="$(tac "$RECENT_DB")"
+      if [ -s "$RECENT_DB" ]; then
+        titles="$(tac "$RECENT_DB")"
+      else
+        send_notification "You dont have anything in your recent list" && continue
+      fi
       ;;
     "Dropped")
-      titles="$(cat "$DROPPED_LIST_DB")"
+      if [ -s "$DROPPED_LIST_DB" ]; then
+        titles="$(cat "$DROPPED_LIST_DB")"
+      else
+        send_notification "You dont have anything in your dropped list" && continue
+      fi
+
       ;;
     "Paused")
-      titles="$(cat "$PAUSED_LIST_DB")"
+      if [ -s "$PAUSED_LIST_DB" ]; then
+        titles="$(cat "$PAUSED_LIST_DB")"
+      else
+        send_notification "You dont have anything in your paused list" && continue
+      fi
       ;;
     "Completed")
-      titles="$(cat "$COMPLETED_LIST_DB")"
+      if [ -s "$COMPLETED_LIST_DB" ]; then
+        titles="$(cat "$COMPLETED_LIST_DB")"
+      else
+        send_notification "You dont have anything in your completed list" && continue
+      fi
       ;;
     "Re-reading")
-      titles="$(cat "$RE_READING_LIST_DB")"
+      if [ -s "$RE_READING_LIST_DB" ]; then
+        titles="$(cat "$RE_READING_LIST_DB")"
+      else
+        send_notification "You dont have anything in your re-reading list" && continue
+      fi
       ;;
     "Planing")
-      titles="$(cat "$PLANING_LIST_DB")"
+      if [ -s "$PLANING_LIST_DB" ]; then
+        titles="$(cat "$PLANING_LIST_DB")"
+      else
+        send_notification "You dont have anything in your planning list" && continue
+      fi
       ;;
     "Docs")
-      titles="$(cat "$DOCS_LIST_DB")"
+      if [ -s "$DOCS_LIST_DB" ]; then
+        titles="$(cat "$DOCS_LIST_DB")"
+      else
+        send_notification "You dont have anything in your docs list" && continue
+      fi
       ;;
 
     # ---- others ----
