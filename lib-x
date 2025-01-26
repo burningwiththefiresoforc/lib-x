@@ -518,7 +518,7 @@ main() {
     action="$GO_DIRECTLY_TO"
     unset GO_DIRECTLY_TO
   else
-    _categories=$(for category in $CALIBRE_CATEGORIES; do echo "${CYAN}${RESET}  ${category^}"; done)
+    _categories=$(for category in $(echo "$CALIBRE_CATEGORIES" | tail -n +2 | cut -d , -f 1 | uniq); do echo "${CYAN}${RESET}  ${category^}"; done)
     action=$(printf "\
 ${CYAN}${RESET}  Reading-List
 ${CYAN}${RESET}  Recent
@@ -534,7 +534,6 @@ ${CYAN}${RESET}  Dropped
 ${CYAN}${RESET}  Edit Config
 ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
   fi
-  echo "$action"
   case "$action" in
   # ---- user lists ----
   "Reading-List")
@@ -567,12 +566,12 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
     titles="$(echo "$CALIBRE_DB" | jq -r '.[].title')"
     ;;
   "Random")
-    titles="$(calibredb list --for-machine --fields=title | jq -r '.[].title' | shuf -n "$NO_OF_RANDOM_BOOKS")"
+    titles="$(echo "$CALIBRE_DB" | jq -r '.[].title' | shuf -n "$NO_OF_RANDOM_BOOKS")"
     ;;
 
   # ---- calibre search ----
   "Formats")
-    series=$(calibredb list_categories --csv | grep "^formats" | cut -d , -f 2 | launcher | tr -d '"')
+    series=$(echo "$CALIBRE_CATEGORIES" | grep "^formats" | cut -d , -f 2 | launcher | tr -d '"')
     if [ -n "$SORT_BY" ]; then
       titles=$(calibredb list --search "format:$series" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
     else
@@ -580,7 +579,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
     fi
     ;;
   "Series")
-    series=$(calibredb list_categories --csv | grep "^series" | cut -d , -f 2 | launcher | tr -d '"')
+    series=$(echo "$CALIBRE_CATEGORIES" | grep "^series" | cut -d , -f 2 | launcher | tr -d '"')
     if [ -n "$SORT_BY" ]; then
       titles=$(calibredb list --search "series:$series" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
     else
@@ -588,7 +587,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
     fi
     ;;
   "Languages")
-    language=$(calibredb list_categories --csv | grep "^languages" | cut -d , -f 2 | launcher | tr -d '"')
+    language=$(echo "$CALIBRE_CATEGORIES" | grep "^languages" | cut -d , -f 2 | launcher | tr -d '"')
     if [ -n "$SORT_BY" ]; then
       titles=$(calibredb list --search "language:$language" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
     else
@@ -596,7 +595,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
     fi
     ;;
   "Tags")
-    tag=$(calibredb list_categories --csv | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"')
+    tag=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"')
     if [ -n "$SORT_BY" ]; then
       titles=$(calibredb list --search "tag:$tag" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
     else
@@ -604,7 +603,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
     fi
     ;;
   "Rating")
-    rating=$(calibredb list_categories --csv | grep "^rating" | cut -d , -f 2 | launcher | tr -d '"')
+    rating=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"')
     if [ -n "$SORT_BY" ]; then
       titles=$(calibredb list --search "rating:$rating" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
     else
@@ -612,7 +611,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
     fi
     ;;
   "Publisher")
-    publisher=$(calibredb list_categories --csv | grep "^publisher" | cut -d , -f 2 | launcher | tr -d '"')
+    publisher=$(echo "$CALIBRE_CATEGORIES" | grep "^publisher" | cut -d , -f 2 | launcher | tr -d '"')
     if [ -n "$SORT_BY" ]; then
       titles=$(calibredb list --search "publisher:$publisher" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
     else
@@ -620,7 +619,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
     fi
     ;;
   "Identifiers")
-    identifier=$(calibredb list_categories --csv | grep "^identifiers" | cut -d , -f 2 | launcher | tr -d '"')
+    identifier=$(echo "$CALIBRE_CATEGORIES" | grep "^identifiers" | cut -d , -f 2 | launcher | tr -d '"')
     if [ -n "$SORT_BY" ]; then
       titles=$(calibredb list --search "identifier:$identifier" --sort "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
     else
@@ -628,7 +627,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
     fi
     ;;
   "Authors")
-    series=$(calibredb list_categories --csv | grep "^authors" | cut -d , -f 2 | launcher | tr -d '"')
+    series=$(echo "$CALIBRE_CATEGORIES" | grep "^authors" | cut -d , -f 2 | launcher | tr -d '"')
     if [ -n "$SORT_BY" ]; then
       titles=$(calibredb list --search "author:$series" --sort "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
     else
@@ -975,7 +974,7 @@ else
     calibredb list --for-machine --fields all >"$CALIBRE_DB_JSON"
     CALIBRE_DB="$(cat "$CALIBRE_DB_JSON")"
 
-    calibredb list_categories --csv | tail -n +2 | cut -d , -f 1 | uniq >"$CALIBRE_CATEGORIES_CSV"
+    calibredb list_categories --csv >"$CALIBRE_CATEGORIES_CSV"
 
     CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
     command ls -ld "$CALIBRE_LIBRARY_PATH" >"$CLI_CACHE_DIR/last_db_timestamp"
