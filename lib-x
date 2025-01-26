@@ -813,6 +813,7 @@ ${CYAN}${RESET}  Read
 ${CYAN}󰐒${RESET}  Add To List
 ${CYAN}󰐐${RESET}  Remove From List
 ${CYAN}󰗙${RESET}  Remove Book
+${CYAN}󱚌${RESET}  Edit Metadata
 ${CYAN}󰌍${RESET}  Back
 ${RED}󰈆${RESET}  Exit" | launcher "Select Book Action" | sed 's/^.  //g'
         )
@@ -853,6 +854,34 @@ ${RED}󰈆${RESET}  Exit" | launcher "Select Book Action" | sed 's/^.  //g'
           ;;
         "Back")
           break
+          ;;
+        Edit\ Metadata)
+          metadata_field=$(printf "\
+author_sort
+authors
+comments
+cover
+id
+identifiers
+languages
+pubdate
+publisher
+rating
+series
+series_index
+size
+sort
+tags
+timestamp
+title
+title_sort
+cover" | launcher "Select field to edit")
+          book_id="$(echo "$book" | jq -r '.id')"
+          calibredb show_metadata "$book_id"
+          metadata_val=$(prompt "Enter new value for $metadata_field")
+          calibredb set_metadata "$book_id" --field "$metadata_field:$metadata_val"
+          calibredb backup_metadata
+          reload_calibre_data
           ;;
         "Main Menu")
           MAIN=true
