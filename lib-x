@@ -175,6 +175,36 @@ init_pretty_print() {
   fi
 }
 
+prompt() {
+  if [ "$PREFERRED_SELECTOR" = "rofi" ]; then
+    rofi -dmenu -p "$1: "
+  elif command -v "gum" >/dev/null 2>&1; then
+    gum input --header "$CLI_HEADER" --prompt "$1: " --value "$2"
+  else
+    echo "$CLI_HEADER" >/dev/stderr
+    printf "%s: " "$1" >/dev/stderr
+    read -r VAL
+    echo "$VAL"
+  fi
+}
+
+confirm() {
+  if command -v "gum" >/dev/null 2>&1; then
+    gum confirm "$1"
+  else
+    echo "$CLI_HEADER" >/dev/stderr
+    printf 'Are you sure you want to proceed [y/N]?: ' >/dev/stderr
+    read -r CONFIRMED
+    case "$CONFIRMED" in
+    y | Y)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+    esac
+  fi
+}
 core_dep_ch() {
   ! command -v "calibre" >/dev/null 2>&1 && echo calibre is not installed and is a core dep please install it to proceed && exit 1
   ! command -v "jq" >/dev/null 2>&1 && echo jq is not installed and is a core dep please install it to proceed && exit 1
@@ -275,55 +305,18 @@ check_update() {
     esac
   fi
 }
-confirm() {
-  if command -v "gum" >/dev/null 2>&1; then
-    gum confirm "$1"
-  else
-    echo "$CLI_HEADER" >/dev/stderr
-    printf 'Are you sure you want to proceed [y/N]?: ' >/dev/stderr
-    read -r CONFIRMED
-    case "$CONFIRMED" in
-    y | Y)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-    esac
-  fi
-}
 
 sanitize_title() {
   sed 's/\\\/\\\\\\\/g'
 }
-launcher() {
-  case "${PREFERRED_SELECTOR,,}" in
-  *rofi*)
-    if [ -z "$ROFI_THEME" ]; then
-      rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
-    else
-      rofi -no-config -theme "$ROFI_THEME" -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
-    fi
-    ;;
-  *)
-    fzf \
-      --info=hidden \
-      --ansi --layout=reverse \
-      --height=100% \
-      --prompt="Select Action: " \
-      --header-first --header="$CLI_HEADER" \
-      --exact --cycle --ansi
-    ;;
-  esac
 
-}
-launcher_with_preview() {
-  case "${PREFERRED_SELECTOR,,}" in
-  *rofi*)
+launcher() {
+  case "$(echo "$PREFERRED_SELECTOR" | tr '[:upper:]' '[:lower:]')" in
+  rofi)
     if [ -z "$ROFI_THEME" ]; then
-      rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
+      while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
     else
-      rofi -no-config -theme "$ROFI_THEME" -sort -matching fuzzy -dmenu -i -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
+      while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -no-config -theme "$ROFI_THEME" -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
     fi
     ;;
   *)
@@ -331,18 +324,38 @@ launcher_with_preview() {
       --info=hidden \
       --layout=reverse \
       --height=100% \
-      --prompt="Select Book: " \
+      --prompt="${1}: " \
       --header-first --header="$CLI_HEADER" \
-      --preview-window=left,35%,wrap --bind=right:accept \
-      --expect=shift-left,shift-right --tabstop=1 \
-      --cycle --exact \
-      --ansi --preview="$LIB_X_PREVIEW" |
-      tr -d "\n"
+      --exact --cycle --ansi
     ;;
   esac
 
 }
 
+launcher_with_preview() {
+  case "$PREFERRED_SELECTOR" in
+  rofi)
+    if [ -z "$ROFI_THEME" ]; then
+      while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -matching fuzzy -sorting-method fzf
+    else
+      while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -no-config -theme "$ROFI_THEME" -sort -matching fuzzy -dmenu -i -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
+    fi
+    ;;
+  *)
+    fzf \
+      --info=hidden \
+      --layout=reverse \
+      --height=100% \
+      --prompt="${1}: " \
+      --header-first --header="$CLI_HEADER" \
+      --preview-window=left,35%,wrap --bind=right:accept \
+      --expect=shift-left,shift-right --tabstop=1 \
+      --cycle --exact \
+      --ansi --preview="$LIB_X_PREVIEW"
+    ;;
+  esac
+
+}
 user_lists_manager() {
   case "$1" in
   "Reading")
@@ -538,7 +551,7 @@ ${CYAN}${RESET}  All
 %s
 ${CYAN}${RESET}  Dropped
 ${CYAN}${RESET}  Edit Config
-${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
+${RED}󰈆${RESET}  Exit" "$_categories" | launcher "Select Action" | sed 's/^.  //g')
     fi
     case "$action" in
     # ---- user lists ----
@@ -610,7 +623,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
 
     # ---- calibre search ----
     "Formats")
-      series=$(echo "$CALIBRE_CATEGORIES" | grep "^formats" | cut -d , -f 2 | launcher | tr -d '"')
+      series=$(echo "$CALIBRE_CATEGORIES" | grep "^formats" | cut -d , -f 2 | launcher "Select Format" | tr -d '"')
       if [ -n "$SORT_BY" ]; then
         titles=$(calibredb list --search "format:$series" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
       else
@@ -618,7 +631,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
       fi
       ;;
     "Series")
-      series=$(echo "$CALIBRE_CATEGORIES" | grep "^series" | cut -d , -f 2 | launcher | tr -d '"')
+      series=$(echo "$CALIBRE_CATEGORIES" | grep "^series" | cut -d , -f 2 | launcher "Select Series" | tr -d '"')
       if [ -n "$SORT_BY" ]; then
         titles=$(calibredb list --search "series:$series" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
       else
@@ -626,7 +639,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
       fi
       ;;
     "Languages")
-      language=$(echo "$CALIBRE_CATEGORIES" | grep "^languages" | cut -d , -f 2 | launcher | tr -d '"')
+      language=$(echo "$CALIBRE_CATEGORIES" | grep "^languages" | cut -d , -f 2 | launcher "Select Language" | tr -d '"')
       if [ -n "$SORT_BY" ]; then
         titles=$(calibredb list --search "language:$language" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
       else
@@ -634,7 +647,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
       fi
       ;;
     "Tags")
-      tag=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"')
+      tag=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher "Select Tag" | tr -d '"')
       if [ -n "$SORT_BY" ]; then
         titles=$(calibredb list --search "tag:$tag" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
       else
@@ -642,7 +655,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
       fi
       ;;
     "Rating")
-      rating=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"')
+      rating=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher "Select Rating" | tr -d '"')
       if [ -n "$SORT_BY" ]; then
         titles=$(calibredb list --search "rating:$rating" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
       else
@@ -650,7 +663,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
       fi
       ;;
     "Publisher")
-      publisher=$(echo "$CALIBRE_CATEGORIES" | grep "^publisher" | cut -d , -f 2 | launcher | tr -d '"')
+      publisher=$(echo "$CALIBRE_CATEGORIES" | grep "^publisher" | cut -d , -f 2 | launcher "Select Publisher" | tr -d '"')
       if [ -n "$SORT_BY" ]; then
         titles=$(calibredb list --search "publisher:$publisher" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
       else
@@ -658,7 +671,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
       fi
       ;;
     "Identifiers")
-      identifier=$(echo "$CALIBRE_CATEGORIES" | grep "^identifiers" | cut -d , -f 2 | launcher | tr -d '"')
+      identifier=$(echo "$CALIBRE_CATEGORIES" | grep "^identifiers" | cut -d , -f 2 | launcher "Select Identifiers" | tr -d '"')
       if [ -n "$SORT_BY" ]; then
         titles=$(calibredb list --search "identifier:$identifier" --sort "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
       else
@@ -666,7 +679,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
       fi
       ;;
     "Authors")
-      series=$(echo "$CALIBRE_CATEGORIES" | grep "^authors" | cut -d , -f 2 | launcher | tr -d '"')
+      series=$(echo "$CALIBRE_CATEGORIES" | grep "^authors" | cut -d , -f 2 | launcher "Select Author" | tr -d '"')
       if [ -n "$SORT_BY" ]; then
         titles=$(calibredb list --search "author:$series" --sort "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
       else
@@ -696,9 +709,9 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
       export SHELL
       export -f fzf_preview init_pretty_print sanitize_title
       if [ "$ENABLE_PREVIEW" = "true" ]; then
-        title=$(printf "%s\nBack\nExit" "$titles" | launcher_with_preview)
+        title=$(printf "%s\nBack\nExit" "$titles" | launcher_with_preview "Select Book" | tr -d "\n")
       else
-        title=$(printf "%s\nBack\nExit" "$titles" | launcher | tr -d "\n")
+        title=$(printf "%s\nBack\nExit" "$titles" | launcher "Select Book" | tr -d "\n")
       fi
       [ "$title" = "Exit" ] && byebye
       [ "$title" = "Back" ] && break
@@ -713,7 +726,7 @@ ${CYAN}${RESET}  Read
 ${CYAN}󰐒${RESET}  Add To List
 ${CYAN}󰐐${RESET}  Remove From List
 ${CYAN}󰌍${RESET}  Back
-${RED}󰈆${RESET}  Exit" | launcher | sed 's/^.  //g'
+${RED}󰈆${RESET}  Exit" | launcher "Select Book Action" | sed 's/^.  //g'
         )
         case "$action" in
         "Read")
@@ -740,11 +753,11 @@ ${RED}󰈆${RESET}  Exit" | launcher | sed 's/^.  //g'
           [ "$DISOWN_READING_PROCESS" = "false" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && wait
           ;;
         "Add To List")
-          list_to_add_to=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher)
+          list_to_add_to=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher "Select List")
           user_lists_manager "$list_to_add_to" "add"
           ;;
         "Remove From List")
-          list_to_remove_from=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher)
+          list_to_remove_from=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher "Select List")
           user_lists_manager "$list_to_remove_from" "remove"
           ;;
         "Back")
@@ -1032,7 +1045,7 @@ current_time=$(date +%s)
 last_check_time=$(cat "$timestamp_file" 2>/dev/null || echo 0)
 
 if ((current_time - last_check_time >= interval)); then
-  # check_update "A new version of $CLI_NAME has been found would you like to upgrade(y/n)"
+  check_update "A new version of $CLI_NAME has been found would you like to upgrade(y/n)"
   echo "$current_time" >"$timestamp_file"
 fi
 core_dep_ch
