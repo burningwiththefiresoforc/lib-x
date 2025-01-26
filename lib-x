@@ -10,16 +10,21 @@ CLI_HEADER='
 ╚══════╝╚═╝╚═════╝░░░░░░░╚═╝░░╚═╝
 '
 
-CLI_NAME="${0##*/}"
+CLI_NAME="lib-x"
 CLI_VERSION="0.1.0"
-CLI_AUTHOR="BeneX-254"
+CLI_AUTHOR="Benexl"
 
 CLI_DIR="$(dirname "$(realpath "$0")")"
 CLI_CONFIG_DIR="$HOME/.config/$CLI_NAME"
 CLI_CONFIG_FILE="$CLI_CONFIG_DIR/${CLI_NAME}.conf"
 CLI_DBS_DIR="$CLI_CONFIG_DIR/DBS"
+CLI_CACHE_DIR="$HOME/.cache/$CLI_NAME"
 
+[ -d "$CLI_CACHE_DIR" ] || mkdir -p "$CLI_CACHE_DIR"
 [ -d "$CLI_DBS_DIR" ] || mkdir -p "$CLI_DBS_DIR"
+
+CALIBRE_DB_JSON="$CLI_CACHE_DIR/calibre_db.json"
+CALIBRE_CATEGORIES_CSV="$CLI_CACHE_DIR/calibre_categories.csv"
 
 print_config() {
   echo "\
@@ -83,6 +88,10 @@ load_config() {
   DROPPED_LIST_DB="$CLI_DBS_DIR/dropped_list"
   DOCS_LIST_DB="$CLI_DBS_DIR/docs_list"
   RECENT_DB="$CLI_DBS_DIR/recent"
+  IMAGE_RENDERER="icat"
+
+  CALIBRE_LIBRARY_PATH="$HOME/Calibre Library"
+  export IMAGE_RENDERER
 
   DISOWN_READING_PROCESS="$(grep -s 'DISOWN_READING_PROCESS:' "$CLI_CONFIG_FILE" | sed 's/^#.*//g;s/^.*: //')"
   [ -z "$DISOWN_READING_PROCESS" ] && DISOWN_READING_PROCESS="true"
@@ -119,6 +128,39 @@ load_config() {
   export FZF_DEFAULT_OPTS
 
 }
+
+LIB_X_PREVIEW="
+if ! [ -z {} ] && ! [ {} = \"Exit\" ] && ! [ {} = \"Main Menu\" ];then
+  CALIBRE_DB=\"\$(cat \"$CALIBRE_DB_JSON\")\";
+  title=\"\$(echo {} | sed 's/\\\/\\\\\\\/g;')\";
+  book=\$(echo \"\$CALIBRE_DB\" |jq -r \"map(select(.title == \\\"\$title\\\")) | .[0]\")
+  book_title=\$(echo  \"\$book\"|jq -r '.title');
+  book_authors=\$(echo  \"\$book\"|jq -r '.authors');
+  book_tags=\$(echo  \"\$book\"|jq -r '.tags|join(\", \")');
+  book_cover=\$(echo  \"\$book\"|jq -r '.cover');
+  book_comments=\$(echo  \"\$book\"|jq -r '.comments');
+  book_langs=\$(echo  \"\$book\"|jq -r '.languages[]');
+  
+  init_pretty_print;
+  if [ -s \"\$book_cover\" ];then
+    fzf_preview  \"\$book_cover\";
+  fi
+
+  ll=1
+  while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+  printf \"\${MAGENTA}\${BOLD}Title:\${RESET} \$book_title\n\";
+  printf \"\${MAGENTA}\${BOLD}Authors:\${RESET} \$book_authors\n\";
+  printf \"\${MAGENTA}\${BOLD}Tags:\${RESET} \$book_tags\n\";
+  printf \"\${MAGENTA}\${BOLD}Languages:\${RESET} \$book_langs\n\";
+
+  ll=1
+  while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+ ! [ \"\$book_comments\" = "null" ] && echo -e \"\$book_comments\"
+  
+else\
+  echo Loading;\
+fi;\
+      "
 
 init_pretty_print() {
   if [ "$PRETTY_PRINT" = "true" ]; then
@@ -212,7 +254,8 @@ update_script() {
     fi
   fi
   exec "$lib_x_path"
-}check_update() {
+}
+check_update() {
   update=$(curl -s "https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x")
   update="$(printf '%s\n' "$update" | diff -u "$(command -v lib-x)" - 2>/dev/null)"
   if [ -n "$update" ]; then
@@ -288,41 +331,8 @@ launcher_with_preview() {
       --preview-window=left,35%,wrap --bind=right:accept \
       --expect=shift-left,shift-right --tabstop=1 \
       --cycle --exact \
-      --ansi --preview="
-if ! [ -z {} ] && ! [ {} = \"Exit\" ] && ! [ {} = \"Main Menu\" ];then
-  if [ -f \"$CLI_CONFIG_DIR/calibredb.json\" ];then
-    CALIBRE_DATA=\"\$(cat \"$CLI_CONFIG_DIR/calibredb.json\")\"
-  else
-    CALIBRE_DATA=\"\$(calibredb list --for-machine --fields all)\";
-  fi
-  title=\"\$(echo {} | sed 's/\\\/\\\\\\\/g;')\";
-  book=\$(echo \"\$CALIBRE_DATA\" |jq -r \"map(select(.title == \\\"\$title\\\")) | .[0]\")
-  book_title=\$(echo  \"\$book\"|jq -r '.title');
-  book_authors=\$(echo  \"\$book\"|jq -r '.authors');
-  book_tags=\$(echo  \"\$book\"|jq -r '.tags|join(\", \")');
-  book_cover=\$(echo  \"\$book\"|jq -r '.cover');
-  book_comments=\$(echo  \"\$book\"|jq -r '.comments');
-  book_langs=\$(echo  \"\$book\"|jq -r '.languages[]');
-  
-  init_pretty_print;
-  fzf_preview  \"\$book_cover\";
-
-  ll=1
-  while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
-  printf \"\${MAGENTA}\${BOLD}Title:\${RESET} \$book_title\n\";
-  printf \"\${MAGENTA}\${BOLD}Authors:\${RESET} \$book_authors\n\";
-  printf \"\${MAGENTA}\${BOLD}Tags:\${RESET} \$book_tags\n\";
-  printf \"\${MAGENTA}\${BOLD}Languages:\${RESET} \$book_langs\n\";
-
-  ll=1
-  while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
-  if command -v glow &>/dev/null;then echo -e \$book_comments|glow;
-  else echo -e \"\$book_comments\"
-  fi
-else\
-  echo Loading;\
-fi;\
-      " | tr -d "\n"
+      --ansi --preview="$LIB_X_PREVIEW" |
+      tr -d "\n"
     ;;
   esac
 
@@ -499,12 +509,8 @@ byebye() {
   echo "Have a good day $USERNAME"
   exit 0
 }
-dump_calibre_data() {
-
-  calibredb list --for-machine --fields all >"$CLI_CONFIG_DIR/calibredb.json"
-}
 main() {
-  dump_calibre_data
+
   init_pretty_print
 
   # ---- main menu ----
@@ -512,8 +518,7 @@ main() {
     action="$GO_DIRECTLY_TO"
     unset GO_DIRECTLY_TO
   else
-    categories=$(calibredb list_categories --csv | tail -n +2 | cut -d , -f 1 | uniq)
-    _categories=$(for category in $categories; do echo "${CYAN}${RESET}  ${category^}"; done)
+    _categories=$(for category in $CALIBRE_CATEGORIES; do echo "${CYAN}${RESET}  ${category^}"; done)
     action=$(printf "\
 ${CYAN}${RESET}  Reading-List
 ${CYAN}${RESET}  Recent
@@ -529,6 +534,7 @@ ${CYAN}${RESET}  Dropped
 ${CYAN}${RESET}  Edit Config
 ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
   fi
+  echo "$action"
   case "$action" in
   # ---- user lists ----
   "Reading-List")
@@ -558,7 +564,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
 
   # ---- others ----
   "All")
-    titles="$(echo "$CALIBRE_DATA" | jq -r '.[].title')"
+    titles="$(echo "$CALIBRE_DB" | jq -r '.[].title')"
     ;;
   "Random")
     titles="$(calibredb list --for-machine --fields=title | jq -r '.[].title' | shuf -n "$NO_OF_RANDOM_BOOKS")"
@@ -639,8 +645,7 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
     byebye
     ;;
   *)
-    echo invalid action
-    sleep 1
+    send_notification 'invalid action'
     main
     ;;
   esac
@@ -683,7 +688,7 @@ ${RED}󰈆${RESET}  Exit" | launcher | sed 's/^.  //g'
         fi
 
         # open book
-        book=$(cat "$CLI_CONFIG_DIR/calibredb.json" | jq "map(select(.title == \"$title\")) | .[0]")
+        book=$(cat "$CLI_CACHE_DIR/calibredb.json" | jq "map(select(.title == \"$title\")) | .[0]")
         book_path="$(echo "$book" | jq -r '.formats[0]')"
         if command -v "open"; then
           open "$book_path" &>/dev/null &
@@ -960,14 +965,26 @@ Example:
   shift
 done
 if [ -n "$SORT_BY" ] && [ -n "$SEARCH" ]; then
-  CALIBRE_DATA="$(calibredb list --for-machine --fields title --search "$SEARCH" --sort-by "$SORT_BY")"
+  CALIBRE_DB="$(calibredb list --for-machine --fields all --search "$SEARCH" --sort-by "$SORT_BY")"
 elif [ -n "$SORT_BY" ]; then
-  CALIBRE_DATA="$(calibredb list --for-machine --fields title --sort-by "$SORT_BY")"
+  CALIBRE_DB="$(calibredb list --for-machine --fields all --sort-by "$SORT_BY")"
 elif [ -n "$SEARCH" ]; then
-  CALIBRE_DATA="$(calibredb list --for-machine --fields title --search "$SEARCH")"
-fi
-CALIBRE_DATA="${CALIBRE_DATA:-$(calibredb list --for-machine --fields title)}"
+  CALIBRE_DB="$(calibredb list --for-machine --fields all --search "$SEARCH")"
+else
+  if ! [ -s "$CALIBRE_DB_JSON" ] || ! [ -s "$CALIBRE_CATEGORIES_CSV" ] || ! [ -s "$CLI_CACHE_DIR/last_db_timestamp" ] || ! [ "$(cat "$CLI_CACHE_DIR/last_db_timestamp")" = "$(command ls -ld "$CALIBRE_LIBRARY_PATH")" ]; then
+    calibredb list --for-machine --fields all >"$CALIBRE_DB_JSON"
+    CALIBRE_DB="$(cat "$CALIBRE_DB_JSON")"
 
+    calibredb list_categories --csv | tail -n +2 | cut -d , -f 1 | uniq >"$CALIBRE_CATEGORIES_CSV"
+
+    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
+    command ls -ld "$CALIBRE_LIBRARY_PATH" >"$CLI_CACHE_DIR/last_db_timestamp"
+
+  else
+    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV")"
+    CALIBRE_DB="$(cat "$CALIBRE_DB_JSON")"
+  fi
+fi
 
 # setup for ui
 timestamp_file="$CLI_CACHE_DIR/last_update_check"
