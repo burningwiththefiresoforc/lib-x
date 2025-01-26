@@ -169,7 +169,33 @@ else\
   echo Loading;\
 fi;\
       "
+reload_calibre_data() {
 
+  if [ -n "$SORT_BY" ] && [ -n "$SEARCH" ]; then
+    CALIBRE_DB="$(calibredb list --for-machine --fields all --search "$SEARCH" --sort-by "$SORT_BY")"
+    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
+  elif [ -n "$SORT_BY" ]; then
+    CALIBRE_DB="$(calibredb list --for-machine --fields all --sort-by "$SORT_BY")"
+    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
+  elif [ -n "$SEARCH" ]; then
+    CALIBRE_DB="$(calibredb list --for-machine --fields all --search "$SEARCH")"
+    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
+  else
+    if [ "$FORCE_UPDATE_DB" = "true" ] || ! [ -s "$CALIBRE_DB_JSON_FILE" ] || ! [ -s "$CALIBRE_CATEGORIES_CSV_FILE" ] || ! [ -s "$CLI_CACHE_DIR/last_db_timestamp" ] || ! [ "$(cat "$CLI_CACHE_DIR/last_db_timestamp")" = "$(command ls -ld "$CALIBRE_LIBRARY_PATH")" ]; then
+      calibredb list --for-machine --fields all >"$CALIBRE_DB_JSON_FILE"
+      CALIBRE_DB="$(cat "$CALIBRE_DB_JSON_FILE")"
+
+      calibredb list_categories --csv >"$CALIBRE_CATEGORIES_CSV_FILE"
+
+      CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
+      command ls -ld "$CALIBRE_LIBRARY_PATH" >"$CLI_CACHE_DIR/last_db_timestamp"
+
+    else
+      CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
+      CALIBRE_DB="$(cat "$CALIBRE_DB_JSON_FILE")"
+    fi
+  fi
+}
 init_pretty_print() {
   if [ "$PRETTY_PRINT" = "true" ]; then
     RED=$(tput setaf 1)
@@ -219,6 +245,7 @@ core_dep_ch() {
 }
 send_notification() {
   echo "$1" >&2 && sleep "$NOTIFICATION_DURATION"
+  clear
   return 0
 }
 
@@ -697,10 +724,12 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher "Select Action" | sed 's/^. 
         local books_path
         miscellaneous_action=$(printf "\
 ${CYAN}󰗛${RESET}  Add Books
+${CYAN}󰉗${RESET}  Add Books From Folder
+${CYAN}󰑓${RESET}  Reload Data
 ${CYAN}${RESET}  Back
 ${RED}󰈆${RESET}  Exit" | launcher "Select Action" | sed 's/^.  //g')
         case "$miscellaneous_action" in
-        Add\ Book)
+        Add\ Books\ From\ Folder)
           if [ "$FILE_EXPLORER" = "yazi" ]; then
             yazi --cwd-file "$CLI_CACHE_DIR/books_path"
             books_path=$(cat "$CLI_CACHE_DIR/books_path")
@@ -716,7 +745,28 @@ ${RED}󰈆${RESET}  Exit" | launcher "Select Action" | sed 's/^.  //g')
             calibredb add --help
             custom_args=$(prompt "Enter your custom args separated by spaces")
           fi
-          calibredb add "$books_path" $custom_args || send_notification "Failed to add books"
+          confirm "Would you like to proceed in adding books?" && calibredb add "$books_path" $custom_args || send_notification "Failed to add books"
+          ;;
+        Reload\ Data)
+          send_notification "Reloading calibre data" && FORCE_UPDATE_DB="true" reload_calibre_data
+          ;;
+        Add\ Books)
+          if [ "$FILE_EXPLORER" = "yazi" ]; then
+            yazi --chooser-file "$CLI_CACHE_DIR/books_path"
+            books_path=$(cat "$CLI_CACHE_DIR/books_path")
+          elif [ "$FILE_EXPLORER" = "fzf" ]; then
+            books_path=$(find $HOME -type f | fzf --multi)
+          else
+            send_notification "Unsupported file explorer"
+            continue
+          fi
+
+          if confirm "Would you like to input custom args (default: calibre_db add '$books_path')"; then
+            clear
+            calibredb add --help
+            custom_args=$(prompt "Enter your custom args separated by spaces")
+          fi
+          confirm "Would you like to proceed in adding books?" && echo "$books_path" | xargs -I "%s" -- calibredb add "%s" $custom_args && send_notification "Success" || send_notification "Failed to add books"
           ;;
         Back)
           break
@@ -753,6 +803,7 @@ ${RED}󰈆${RESET}  Exit" | launcher "Select Action" | sed 's/^.  //g')
       [ "$title" = "Back" ] && break
       [ -z "$title" ] && send_notification "Nothing has been selected" && break
       clear
+      book=$(cat "$CALIBRE_DB_JSON_FILE" | jq "map(select(.title == \"$title\")) | .[0]")
 
       # ---- book actions ----
       while true; do
@@ -761,6 +812,7 @@ ${RED}󰈆${RESET}  Exit" | launcher "Select Action" | sed 's/^.  //g')
 ${CYAN}${RESET}  Read
 ${CYAN}󰐒${RESET}  Add To List
 ${CYAN}󰐐${RESET}  Remove From List
+${CYAN}󰗙${RESET}  Remove Book
 ${CYAN}󰌍${RESET}  Back
 ${RED}󰈆${RESET}  Exit" | launcher "Select Book Action" | sed 's/^.  //g'
         )
@@ -774,7 +826,6 @@ ${RED}󰈆${RESET}  Exit" | launcher "Select Book Action" | sed 's/^.  //g'
           fi
 
           # open book
-          book=$(cat "$CALIBRE_DB_JSON_FILE" | jq "map(select(.title == \"$title\")) | .[0]")
           book_path="$(echo "$book" | jq -r '.formats[0]')"
           if command -v "open"; then
             open "$book_path" &>/dev/null &
@@ -795,6 +846,10 @@ ${RED}󰈆${RESET}  Exit" | launcher "Select Book Action" | sed 's/^.  //g'
         "Remove From List")
           list_to_remove_from=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher "Select List")
           user_lists_manager "$list_to_remove_from" "remove"
+          ;;
+        Remove\ Book)
+          book_id="$(echo "$book" | jq -r '.id')"
+          confirm "Are you sure you want to remove $title" && calibredb remove "$book_id" && send_notification "Successfully removed"
           ;;
         "Back")
           break
@@ -1048,30 +1103,8 @@ Example:
   esac
   shift
 done
-if [ -n "$SORT_BY" ] && [ -n "$SEARCH" ]; then
-  CALIBRE_DB="$(calibredb list --for-machine --fields all --search "$SEARCH" --sort-by "$SORT_BY")"
-  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
-elif [ -n "$SORT_BY" ]; then
-  CALIBRE_DB="$(calibredb list --for-machine --fields all --sort-by "$SORT_BY")"
-  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
-elif [ -n "$SEARCH" ]; then
-  CALIBRE_DB="$(calibredb list --for-machine --fields all --search "$SEARCH")"
-  CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
-else
-  if ! [ -s "$CALIBRE_DB_JSON_FILE" ] || ! [ -s "$CALIBRE_CATEGORIES_CSV_FILE" ] || ! [ -s "$CLI_CACHE_DIR/last_db_timestamp" ] || ! [ "$(cat "$CLI_CACHE_DIR/last_db_timestamp")" = "$(command ls -ld "$CALIBRE_LIBRARY_PATH")" ]; then
-    calibredb list --for-machine --fields all >"$CALIBRE_DB_JSON_FILE"
-    CALIBRE_DB="$(cat "$CALIBRE_DB_JSON_FILE")"
 
-    calibredb list_categories --csv >"$CALIBRE_CATEGORIES_CSV_FILE"
-
-    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
-    command ls -ld "$CALIBRE_LIBRARY_PATH" >"$CLI_CACHE_DIR/last_db_timestamp"
-
-  else
-    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
-    CALIBRE_DB="$(cat "$CALIBRE_DB_JSON_FILE")"
-  fi
-fi
+reload_calibre_data
 
 # setup for ui
 timestamp_file="$CLI_CACHE_DIR/last_update_check"
