@@ -46,15 +46,9 @@ EDITOR: $PREFERRED_EDITOR
 # your preferred selector for the tui [fzf/rofi]
 PREFERRED_SELECTOR: $PREFERRED_SELECTOR
 
-# the quality of the video when streaming with a player other than mpv
-VIDEO_QUALITY: $VIDEO_QUALITY
-
 # whether to show previews [true/false]
 # its cool so enable it
 ENABLE_PREVIEW: $ENABLE_PREVIEW
-
-# whether to run mpv as a background process and prevent it from closing even if you terminate the program or terminal session
-DISOWN_STREAMING_PROCESS: $DISOWN_STREAMING_PROCESS
 
 # whether to update the recent list kept locally [true/false]
 UPDATE_RECENT: $UPDATE_RECENT
@@ -62,24 +56,24 @@ UPDATE_RECENT: $UPDATE_RECENT
 # the number of recent videos to keep
 NO_OF_RECENT: $NO_OF_RECENT
 
-# the player to use for streaming [mpv/vlc]
-PLAYER: $PLAYER
-
-# the browser to use to extract cookies from
-# this is used to by yt-dlp to access content that would require login
-PREFERRED_BROWSER: ${PREFERRED_BROWSER[1]}
-
-# the number of results to get from yt-dlp
-NO_OF_SEARCH_RESULTS: $NO_OF_SEARCH_RESULTS
-
 # the duration notifications stay on the screen
 NOTIFICATION_DURATION: $NOTIFICATION_DURATION
 
-# where your downloads will be stored
-DOWNLOAD_DIRECTORY: $DOWNLOAD_DIRECTORY
+# the path to the calibre library
+CALIBRE_LIBRARY_PATH: $CALIBRE_LIBRARY_PATH
+
+# the image renderer to use
+IMAGE_RENDERER: $IMAGE_RENDERER
+
+# whether to disown the reading process
+DISOWN_READING_PROCESS: $DISOWN_READING_PROCESS
+
+# the number of random books
+NO_OF_RANDOM_BOOKS: $NO_OF_RANDOM_BOOKS
 "
 }
 load_config() {
+  ! [ -f "$CLI_CONFIG_DIR/${CLI_NAME}.conf" ] && touch "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
   READING_LIST_DB="$CLI_DBS_DIR/reading_list"
   PAUSED_LIST_DB="$CLI_DBS_DIR/paused_list"
   PLANING_LIST_DB="$CLI_DBS_DIR/planing_list"
@@ -88,35 +82,41 @@ load_config() {
   DROPPED_LIST_DB="$CLI_DBS_DIR/dropped_list"
   DOCS_LIST_DB="$CLI_DBS_DIR/docs_list"
   RECENT_DB="$CLI_DBS_DIR/recent"
-  IMAGE_RENDERER="icat"
-  NOTIFICATION_DURATION=3
-  PRETTY_PRINT="true"
 
-  CALIBRE_LIBRARY_PATH="$HOME/Calibre Library"
-  export IMAGE_RENDERER
+  CALIBRE_LIBRARY_PATH="$(awk -F': ' '/^CALIBRE_LIBRARY_PATH:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
+  [ -z "$CALIBRE_LIBRARY_PATH" ] && CALIBRE_LIBRARY_PATH="$HOME/Calibre Library"
 
-  DISOWN_READING_PROCESS="$(grep -s 'DISOWN_READING_PROCESS:' "$CLI_CONFIG_FILE" | sed 's/^#.*//g;s/^.*: //')"
+  PRETTY_PRINT="$(awk -F': ' '/^PRETTY_PRINT:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
+  [ -z "$PRETTY_PRINT" ] && PRETTY_PRINT="true"
+
+  IMAGE_RENDERER="$(awk -F': ' '/^IMAGE_RENDERER:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
+  [ -z "$IMAGE_RENDERER" ] && IMAGE_RENDERER=$([ -n "$KITTY_WINDOW_ID" ] && echo "icat" || echo "chafa")
+
+  DISOWN_READING_PROCESS="$(awk -F': ' '/^DISOWN_READING_PROCESS:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
   [ -z "$DISOWN_READING_PROCESS" ] && DISOWN_READING_PROCESS="true"
 
-  PREFERRED_EDITOR="$(grep -s 'EDITOR:' "$CLI_CONFIG_FILE" | sed 's/^#.*//g;s/^.*: //')"
+  PREFERRED_EDITOR="$(awk -F': ' '/^EDITOR:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
   [ -z "$PREFERRED_EDITOR" ] && PREFERRED_EDITOR=${EDITOR:-open}
 
-  PREFERRED_SELECTOR="$(grep -s 'PREFERRED_SELECTOR:' "$CLI_CONFIG_FILE" | sed 's/^#.*//g;s/^.*: //')"
+  PREFERRED_SELECTOR="$(awk -F': ' '/^PREFERRED_SELECTOR:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
   [ -z "$PREFERRED_SELECTOR" ] && PREFERRED_SELECTOR="fzf"
 
-  ENABLE_PREVIEW="$(grep -s 'ENABLE_PREVIEW:' "$CLI_CONFIG_FILE" | sed 's/^#.*//g;s/^.*: //')"
-  [ -z "$ENABLE_PREVIEW" ] && ENABLE_PREVIEW="true"
+  ENABLE_PREVIEW="$(awk -F': ' '/^ENABLE_PREVIEW:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
+  [ -z "$ENABLE_PREVIEW" ] && ENABLE_PREVIEW="false"
 
-  UPDATE_RECENT="$(grep -s 'UPDATE_RECENT:' "$CLI_CONFIG_FILE" | sed 's/^#.*//g;s/^.*: //')"
+  UPDATE_RECENT="$(awk -F': ' '/^UPDATE_RECENT:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
   [ -z "$UPDATE_RECENT" ] && UPDATE_RECENT="true"
 
-  NO_OF_RECENT="$(grep -s 'NO-OF-RECENT:' "$CLI_CONFIG_FILE" | sed 's/^#.*//g;s/^.*: //')"
+  NO_OF_RECENT="$(awk -F': ' '/^NO_OF_RECENT:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
   [ -z "$NO_OF_RECENT" ] && NO_OF_RECENT=30
 
-  NO_OF_RANDOM_BOOKS="$(grep -s 'NO_OF_RANDOM_BOOKS:' "$CLI_CONFIG_FILE" | sed 's/^#.*//g;s/^.*: //')"
-  [ -z "$NO_OF_RANDOM_BOOKS" ] && NO_OF_RANDOM_BOOKS=30
+  NOTIFICATION_DURATION="$(awk -F': ' '/^NOTIFICATION_DURATION:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
+  [ -z "$NOTIFICATION_DURATION" ] && NOTIFICATION_DURATION=5
 
-  ROFI_THEME="$(grep -s 'ROFI_THEME:' "$CLI_CONFIG_FILE" | sed 's/^#.*//g;s/^.*: //')"
+  ROFI_THEME="$(awk -F': ' '/^ROFI_THEME:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
+
+  NO_OF_RANDOM_BOOKS="$(awk -F': ' '/^NO_OF_RANDOM_BOOKS:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
+  [ -z "$NO_OF_RANDOM_BOOKS" ] && NO_OF_RANDOM_BOOKS=30
 
   ! [ -f "$CLI_CONFIG_FILE" ] && print_config >"$CLI_CONFIG_FILE"
   FZF_DEFAULT_OPTS=${LIBX_FZF_OPTS:-'
@@ -127,7 +127,7 @@ load_config() {
     --border="rounded" --border-label="" --preview-window="border-rounded" --prompt="> "
     --marker=">" --pointer="◆" --separator="─" --scrollbar="│"
   '}
-  export FZF_DEFAULT_OPTS
+  export FZF_DEFAULT_OPTS IMAGE_RENDERER
 
 }
 
