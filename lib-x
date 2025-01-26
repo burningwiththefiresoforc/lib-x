@@ -512,14 +512,15 @@ byebye() {
 main() {
 
   init_pretty_print
+  while true; do
 
-  # ---- main menu ----
-  if [[ -n "$GO_DIRECTLY_TO" ]]; then
-    action="$GO_DIRECTLY_TO"
-    unset GO_DIRECTLY_TO
-  else
-    _categories=$(for category in $(echo "$CALIBRE_CATEGORIES" | tail -n +2 | cut -d , -f 1 | uniq); do echo "${CYAN}${RESET}  ${category^}"; done)
-    action=$(printf "\
+    # ---- main menu ----
+    if [[ -n "$GO_DIRECTLY_TO" ]]; then
+      action="$GO_DIRECTLY_TO"
+      unset GO_DIRECTLY_TO
+    else
+      _categories=$(for category in $(echo "$CALIBRE_CATEGORIES" | tail -n +2 | cut -d , -f 1 | uniq); do echo "${CYAN}${RESET}  ${category^}"; done)
+      action=$(printf "\
 ${CYAN}${RESET}  Reading-List
 ${CYAN}${RESET}  Recent
 ${CYAN}${RESET}  Paused
@@ -533,206 +534,203 @@ ${CYAN}${RESET}  All
 ${CYAN}${RESET}  Dropped
 ${CYAN}${RESET}  Edit Config
 ${RED}󰈆${RESET}  Exit" "$_categories" | launcher | sed 's/^.  //g')
-  fi
-  case "$action" in
-  # ---- user lists ----
-  "Reading-List")
-    titles="$(cat "$READING_LIST_DB")"
-    ;;
-  "Recent")
-    titles="$(tac "$RECENT_DB")"
-    ;;
-  "Dropped")
-    titles="$(cat "$DROPPED_LIST_DB")"
-    ;;
-  "Paused")
-    titles="$(cat "$PAUSED_LIST_DB")"
-    ;;
-  "Completed")
-    titles="$(cat "$COMPLETED_LIST_DB")"
-    ;;
-  "Re-reading")
-    titles="$(cat "$RE_READING_LIST_DB")"
-    ;;
-  "Planing")
-    titles="$(cat "$PLANING_LIST_DB")"
-    ;;
-  "Docs")
-    titles="$(cat "$DOCS_LIST_DB")"
-    ;;
+    fi
+    case "$action" in
+    # ---- user lists ----
+    "Reading-List")
+      titles="$(cat "$READING_LIST_DB")"
+      ;;
+    "Recent")
+      titles="$(tac "$RECENT_DB")"
+      ;;
+    "Dropped")
+      titles="$(cat "$DROPPED_LIST_DB")"
+      ;;
+    "Paused")
+      titles="$(cat "$PAUSED_LIST_DB")"
+      ;;
+    "Completed")
+      titles="$(cat "$COMPLETED_LIST_DB")"
+      ;;
+    "Re-reading")
+      titles="$(cat "$RE_READING_LIST_DB")"
+      ;;
+    "Planing")
+      titles="$(cat "$PLANING_LIST_DB")"
+      ;;
+    "Docs")
+      titles="$(cat "$DOCS_LIST_DB")"
+      ;;
 
-  # ---- others ----
-  "All")
-    titles="$(echo "$CALIBRE_DB" | jq -r '.[].title')"
-    ;;
-  "Random")
-    titles="$(echo "$CALIBRE_DB" | jq -r '.[].title' | shuf -n "$NO_OF_RANDOM_BOOKS")"
-    ;;
+    # ---- others ----
+    "All")
+      titles="$(echo "$CALIBRE_DB" | jq -r '.[].title')"
+      ;;
+    "Random")
+      titles="$(echo "$CALIBRE_DB" | jq -r '.[].title' | shuf -n "$NO_OF_RANDOM_BOOKS")"
+      ;;
 
-  # ---- calibre search ----
-  "Formats")
-    series=$(echo "$CALIBRE_CATEGORIES" | grep "^formats" | cut -d , -f 2 | launcher | tr -d '"')
-    if [ -n "$SORT_BY" ]; then
-      titles=$(calibredb list --search "format:$series" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-    else
-      titles=$(calibredb list --search "format:$series" --for-machine --fields=title | jq '.[].title' -r)
-    fi
-    ;;
-  "Series")
-    series=$(echo "$CALIBRE_CATEGORIES" | grep "^series" | cut -d , -f 2 | launcher | tr -d '"')
-    if [ -n "$SORT_BY" ]; then
-      titles=$(calibredb list --search "series:$series" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-    else
-      titles=$(calibredb list --search "series:$series" --for-machine --fields=title | jq '.[].title' -r)
-    fi
-    ;;
-  "Languages")
-    language=$(echo "$CALIBRE_CATEGORIES" | grep "^languages" | cut -d , -f 2 | launcher | tr -d '"')
-    if [ -n "$SORT_BY" ]; then
-      titles=$(calibredb list --search "language:$language" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-    else
-      titles=$(calibredb list --search "language:$language" --for-machine --fields=title | jq '.[].title' -r)
-    fi
-    ;;
-  "Tags")
-    tag=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"')
-    if [ -n "$SORT_BY" ]; then
-      titles=$(calibredb list --search "tag:$tag" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-    else
-      titles=$(calibredb list --search "tag:$tag" --for-machine --fields=title | jq '.[].title' -r)
-    fi
-    ;;
-  "Rating")
-    rating=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"')
-    if [ -n "$SORT_BY" ]; then
-      titles=$(calibredb list --search "rating:$rating" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-    else
-      titles=$(calibredb list --search "rating:$rating" --for-machine --fields=title | jq '.[].title' -r)
-    fi
-    ;;
-  "Publisher")
-    publisher=$(echo "$CALIBRE_CATEGORIES" | grep "^publisher" | cut -d , -f 2 | launcher | tr -d '"')
-    if [ -n "$SORT_BY" ]; then
-      titles=$(calibredb list --search "publisher:$publisher" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-    else
-      titles=$(calibredb list --search "publisher:$publisher" --for-machine --fields=title | jq '.[].title' -r)
-    fi
-    ;;
-  "Identifiers")
-    identifier=$(echo "$CALIBRE_CATEGORIES" | grep "^identifiers" | cut -d , -f 2 | launcher | tr -d '"')
-    if [ -n "$SORT_BY" ]; then
-      titles=$(calibredb list --search "identifier:$identifier" --sort "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-    else
-      titles=$(calibredb list --search "identifier:$identifier" --for-machine --fields=title | jq '.[].title' -r)
-    fi
-    ;;
-  "Authors")
-    series=$(echo "$CALIBRE_CATEGORIES" | grep "^authors" | cut -d , -f 2 | launcher | tr -d '"')
-    if [ -n "$SORT_BY" ]; then
-      titles=$(calibredb list --search "author:$series" --sort "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-    else
-      titles=$(calibredb list --search "author:$series" --for-machine --fields=title | jq '.[].title' -r)
-    fi
-    ;;
-  # ---- others ----
-  "Edit Config")
-    $PREFERRED_EDITOR "$CLI_CONFIG_FILE"
-    main
-    load_config
-    ;;
-  "Exit")
-    byebye
-    ;;
-  *)
-    send_notification 'invalid action'
-    main
-    ;;
-  esac
-  clear
-
-  # book selection loop
-  while true; do
-    # ---- select book ----
-    SHELL="bash"
-    export SHELL
-    export -f fzf_preview init_pretty_print sanitize_title
-    if [ "$ENABLE_PREVIEW" = "true" ]; then
-      title=$(printf "%s\nExit\nMain Menu" "$titles" | launcher_with_preview)
-    else
-      title=$(printf "%s\nExit\nMain Menu" "$titles" | launcher | tr -d "\n")
-    fi
-    [ "$title" = "Exit" ] && byebye
-    [ "$title" = "Main Menu" ] && break
-    [ -z "$title" ] && echo "Nothing has been selected" && sleep 1 && break
+    # ---- calibre search ----
+    "Formats")
+      series=$(echo "$CALIBRE_CATEGORIES" | grep "^formats" | cut -d , -f 2 | launcher | tr -d '"')
+      if [ -n "$SORT_BY" ]; then
+        titles=$(calibredb list --search "format:$series" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
+      else
+        titles=$(calibredb list --search "format:$series" --for-machine --fields=title | jq '.[].title' -r)
+      fi
+      ;;
+    "Series")
+      series=$(echo "$CALIBRE_CATEGORIES" | grep "^series" | cut -d , -f 2 | launcher | tr -d '"')
+      if [ -n "$SORT_BY" ]; then
+        titles=$(calibredb list --search "series:$series" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
+      else
+        titles=$(calibredb list --search "series:$series" --for-machine --fields=title | jq '.[].title' -r)
+      fi
+      ;;
+    "Languages")
+      language=$(echo "$CALIBRE_CATEGORIES" | grep "^languages" | cut -d , -f 2 | launcher | tr -d '"')
+      if [ -n "$SORT_BY" ]; then
+        titles=$(calibredb list --search "language:$language" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
+      else
+        titles=$(calibredb list --search "language:$language" --for-machine --fields=title | jq '.[].title' -r)
+      fi
+      ;;
+    "Tags")
+      tag=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"')
+      if [ -n "$SORT_BY" ]; then
+        titles=$(calibredb list --search "tag:$tag" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
+      else
+        titles=$(calibredb list --search "tag:$tag" --for-machine --fields=title | jq '.[].title' -r)
+      fi
+      ;;
+    "Rating")
+      rating=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"')
+      if [ -n "$SORT_BY" ]; then
+        titles=$(calibredb list --search "rating:$rating" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
+      else
+        titles=$(calibredb list --search "rating:$rating" --for-machine --fields=title | jq '.[].title' -r)
+      fi
+      ;;
+    "Publisher")
+      publisher=$(echo "$CALIBRE_CATEGORIES" | grep "^publisher" | cut -d , -f 2 | launcher | tr -d '"')
+      if [ -n "$SORT_BY" ]; then
+        titles=$(calibredb list --search "publisher:$publisher" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
+      else
+        titles=$(calibredb list --search "publisher:$publisher" --for-machine --fields=title | jq '.[].title' -r)
+      fi
+      ;;
+    "Identifiers")
+      identifier=$(echo "$CALIBRE_CATEGORIES" | grep "^identifiers" | cut -d , -f 2 | launcher | tr -d '"')
+      if [ -n "$SORT_BY" ]; then
+        titles=$(calibredb list --search "identifier:$identifier" --sort "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
+      else
+        titles=$(calibredb list --search "identifier:$identifier" --for-machine --fields=title | jq '.[].title' -r)
+      fi
+      ;;
+    "Authors")
+      series=$(echo "$CALIBRE_CATEGORIES" | grep "^authors" | cut -d , -f 2 | launcher | tr -d '"')
+      if [ -n "$SORT_BY" ]; then
+        titles=$(calibredb list --search "author:$series" --sort "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
+      else
+        titles=$(calibredb list --search "author:$series" --for-machine --fields=title | jq '.[].title' -r)
+      fi
+      ;;
+    # ---- others ----
+    "Edit Config")
+      $PREFERRED_EDITOR "$CLI_CONFIG_FILE"
+      main
+      load_config
+      ;;
+    "Exit")
+      byebye
+      ;;
+    *)
+      send_notification 'invalid action'
+      continue
+      ;;
+    esac
     clear
 
-    # ---- book actions ----
+    # book selection loop
     while true; do
-      action=$(
-        printf "\
+      # ---- select book ----
+      SHELL="bash"
+      export SHELL
+      export -f fzf_preview init_pretty_print sanitize_title
+      if [ "$ENABLE_PREVIEW" = "true" ]; then
+        title=$(printf "%s\nBack\nExit" "$titles" | launcher_with_preview)
+      else
+        title=$(printf "%s\nBack\nExit" "$titles" | launcher | tr -d "\n")
+      fi
+      [ "$title" = "Exit" ] && byebye
+      [ "$title" = "Back" ] && break
+      [ -z "$title" ] && send_notification "Nothing has been selected" && break
+      clear
+
+      # ---- book actions ----
+      while true; do
+        action=$(
+          printf "\
 ${CYAN}${RESET}  Read
 ${CYAN}󰐒${RESET}  Add To List
 ${CYAN}󰐐${RESET}  Remove From List
 ${CYAN}󰌍${RESET}  Back
-${CYAN}${RESET}  Main Menu
 ${RED}󰈆${RESET}  Exit" | launcher | sed 's/^.  //g'
-      )
-      case "$action" in
-      "Read")
-        # update recent list
-        if [ "$UPDATE_RECENT" = "true" ]; then
-          updated_recent_file_contents=$(grep --invert-match -s "^$title\$" <"$RECENT_DB" | grep --extended-regexp "[[:alnum:]]+" | tail -n "$NO_OF_RECENT")
-          echo "$updated_recent_file_contents" >"$RECENT_DB"
-          echo "$title" >>"$RECENT_DB"
-        fi
+        )
+        case "$action" in
+        "Read")
+          # update recent list
+          if [ "$UPDATE_RECENT" = "true" ]; then
+            updated_recent_file_contents=$(grep --invert-match -s "^$title\$" <"$RECENT_DB" | grep --extended-regexp "[[:alnum:]]+" | tail -n "$NO_OF_RECENT")
+            echo "$updated_recent_file_contents" >"$RECENT_DB"
+            echo "$title" >>"$RECENT_DB"
+          fi
 
-        # open book
-        book=$(cat "$CLI_CACHE_DIR/calibredb.json" | jq "map(select(.title == \"$title\")) | .[0]")
-        book_path="$(echo "$book" | jq -r '.formats[0]')"
-        if command -v "open"; then
-          open "$book_path" &>/dev/null &
-        elif command -v "xdg-open"; then
-          xdg-open "$book_path" &>/dev/null &
-        else
-          echo "No supported reader found" && sleep 1
-        fi
-        # disown
-        [ "${PREFERRED_SELECTOR,,}" = "rofi" ] && wait
-        [ "$DISOWN_READING_PROCESS" = "true" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && disown
-        [ "$DISOWN_READING_PROCESS" = "false" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && wait
-        ;;
-      "Add To List")
-        list_to_add_to=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher)
-        user_lists_manager "$list_to_add_to" "add"
-        ;;
-      "Remove From List")
-        list_to_remove_from=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher)
-        user_lists_manager "$list_to_remove_from" "remove"
-        ;;
-      "Back")
+          # open book
+          book=$(cat "$CALIBRE_DB_JSON" | jq "map(select(.title == \"$title\")) | .[0]")
+          book_path="$(echo "$book" | jq -r '.formats[0]')"
+          if command -v "open"; then
+            open "$book_path" &>/dev/null &
+          elif command -v "xdg-open"; then
+            xdg-open "$book_path" &>/dev/null &
+          else
+            send_notification "No supported reader found"
+          fi
+          # disown
+          [ "${PREFERRED_SELECTOR,,}" = "rofi" ] && wait
+          [ "$DISOWN_READING_PROCESS" = "true" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && disown
+          [ "$DISOWN_READING_PROCESS" = "false" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && wait
+          ;;
+        "Add To List")
+          list_to_add_to=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher)
+          user_lists_manager "$list_to_add_to" "add"
+          ;;
+        "Remove From List")
+          list_to_remove_from=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher)
+          user_lists_manager "$list_to_remove_from" "remove"
+          ;;
+        "Back")
+          break
+          ;;
+        "Main Menu")
+          MAIN=true
+          break
+          ;;
+        "Exit")
+          byebye
+          ;;
+        *)
+          send_notification "invalid action"
+          ;;
+        esac
+        clear
+      done
+      if [ "$MAIN" = true ]; then
+        MAIN=false
         break
-        ;;
-      "Main Menu")
-        MAIN=true
-        break
-        ;;
-      "Exit")
-        byebye
-        ;;
-
-      *)
-        echo invalid action
-        sleep 1
-        ;;
-      esac
-      clear
+      fi
     done
-    if [ "$MAIN" = true ]; then
-      MAIN=false
-      break
-    fi
   done
-  main
 }
 
 # ---- cli ----
