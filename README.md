@@ -24,14 +24,13 @@ curl -sL https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x 
 
 **Required:**
 
-- calibre - for the database
-- jq - to pass the  json data
-- fzf - for the main ui
+- [calibre](https://calibre-ebook.com/) - for the database
+- [jq](https://jqlang.github.io/jq/)- to pass the  json data
+- [fzf](https://github.com/junegunn/fzf) - for the main ui
   
 **optional:**
-
-- glow - rendering the markdown for the descriptions
-- gum - for an even better ui
+- [yazi](https://github.com/charmbracelet/gum) - better file explorer
+- [gum](https://github.com/charmbracelet/gum) - for an even better ui
 
 # Usage
 
