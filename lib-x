@@ -1030,6 +1030,9 @@ while [ $# -gt 0 ]; do
     ROFI_THEME="$2"
     shift
     ;;
+  -U | --update)
+    check_update "A new version of $CLI_NAME has been found would you like to upgrade(y/n)"
+    ;;
   -E | --generate-desktop-entry)
     echo "
 [Desktop Entry]
@@ -1063,6 +1066,7 @@ complete -c $CLI_NAME --no-files --arguments \"completions\" --condition 'not __
 complete -c $CLI_NAME --no-files --short-option h --long-option help --description 'Print a short help text and exit'
 complete -c $CLI_NAME --no-files --short-option v --long-option version --description 'Print a short version string and exit' --condition 'not __fish_seen_subcommand_from completions'
 
+complete -c $CLI_NAME --no-files --short-option U --long-option update --description 'Update lib-x' --condition 'not __fish_seen_subcommand_from completions'
 complete -c $CLI_NAME --no-files --short-option e --long-option edit-config --description 'Edit $CLI_NAME config file' --condition 'not __fish_seen_subcommand_from completions'
 complete -c $CLI_NAME --no-files --short-option p --long-option preferred-selector --description 'your preferred selector' --condition 'not __fish_seen_subcommand_from completions' --exclusive --arguments 'fzf rofi'
 complete -c $CLI_NAME --no-files --short-option d --long-option disown-reading-process --description 'disown the reading process' --condition 'not __fish_seen_subcommand_from completions'
