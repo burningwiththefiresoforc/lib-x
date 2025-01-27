@@ -191,7 +191,12 @@ reload_calibre_data() {
   else
     if [ "$FORCE_UPDATE_DB" = "true" ] || ! [ -s "$CALIBRE_DB_JSON_FILE" ] || ! [ -s "$CALIBRE_CATEGORIES_CSV_FILE" ] || ! [ -s "$CLI_CACHE_DIR/last_db_timestamp" ] || ! [ "$(cat "$CLI_CACHE_DIR/last_db_timestamp")" = "$(command ls -ld "$CALIBRE_LIBRARY_PATH")" ]; then
       calibredb list --for-machine --fields all >"$CALIBRE_DB_JSON_FILE"
-      CALIBRE_DB="$(cat "$CALIBRE_DB_JSON_FILE")"
+      CALIBRE_DB="$(cat "$CALIBRE_DB_JSON_FILE" | jq "
+          .entries=(.entries 
+          | to_entries
+          | map(.value.title=\"\(.key+1|tostring| if (.|length) < 2 then \"0\" + . else . end) \"+.value.title) 
+          |map(.value))
+          ")"
 
       calibredb list_categories --csv >"$CALIBRE_CATEGORIES_CSV_FILE"
 
@@ -593,8 +598,8 @@ ${RED}󰈆${RESET}  Exit" "$_categories" | launcher "Select Action" | sed 's/^. 
       fi
       ;;
     "Recent")
-      if [ -s "$DB_RECENT" ]; then
-        titles="$(tac "$DB_RECENT")"
+      if [ -s "$DB_RECENT_LIST" ]; then
+        titles="$(tac "$DB_RECENT_LIST")"
       else
         send_notification "You dont have anything in your recent list" && continue
       fi
@@ -829,9 +834,9 @@ ${RED}󰈆${RESET}  Exit" | launcher "Select Book Action" | sed 's/^.  //g'
         "Read")
           # update recent list
           if [ "$UPDATE_RECENT" = "true" ]; then
-            updated_recent_file_contents=$(grep --invert-match -s "^$title\$" <"$DB_RECENT" | grep --extended-regexp "[[:alnum:]]+" | tail -n "$NO_OF_RECENT")
-            echo "$updated_recent_file_contents" >"$DB_RECENT"
-            echo "$title" >>"$DB_RECENT"
+            updated_recent_file_contents=$(grep --invert-match -s "^$title\$" <"$DB_RECENT_LIST" | grep --extended-regexp "[[:alnum:]]+" | tail -n "$NO_OF_RECENT")
+            echo "$updated_recent_file_contents" >"$DB_RECENT_LIST"
+            echo "$title" >>"$DB_RECENT_LIST"
           fi
 
           # open book
