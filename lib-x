@@ -443,6 +443,28 @@ user_lists_manager() {
     fi
     ;;
 
+  "Recent")
+    if [ "$2" = "add" ]; then
+      if grep "^${title}\$" -s -q <"$DB_RECENT_LIST"; then
+        send_notification "Already in paused List"
+      else
+        send_notification "Adding to paused list..."
+        echo "$title" >>"$DB_RECENT_LIST"
+      fi
+    elif [ "$2" = "remove" ]; then
+      if grep "^$title\$" -q <"$DB_RECENT_LIST"; then
+        if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
+          send_notification "removing from $1 List..."
+          updated_list="$(grep --invert-match "^$title\$" <"$DB_RECENT_LIST")"
+          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_RECENT_LIST"
+
+        fi
+      else
+        send_notification "$title is not in your $1 List"
+      fi
+    fi
+    ;;
+
   "Re-reading")
     if [ "$2" = "add" ]; then
       if grep "^${title}\$" -s -q <"$DB_RE_READING_LIST"; then
@@ -854,11 +876,11 @@ ${RED}󰈆${RESET}  Exit" | launcher "Select Book Action" | sed 's/^.  //g'
           [ "$DISOWN_READING_PROCESS" = "false" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && wait
           ;;
         "Add To List")
-          list_to_add_to=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher "Select List")
+          list_to_add_to=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped\nRecent" | launcher "Select List")
           user_lists_manager "$list_to_add_to" "add"
           ;;
         "Remove From List")
-          list_to_remove_from=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped" | launcher "Select List")
+          list_to_remove_from=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped\nRecent" | launcher "Select List")
           user_lists_manager "$list_to_remove_from" "remove"
           ;;
         Remove\ Book)
