@@ -44,9 +44,12 @@ lib-x -e
 # search for a specific book with calibre search syntax
 lib-x --search tag:programming
 ```
-# Other Terminal Browsers
+
+# Other Terminal Browsers I Made
 [yt-x](https://github.com/Benexl/yt-x) - browse youtube and other yt-dlp sites from the terminal
+
 [fastanime](https://github.com/Benexl/FastAnime) - browse anime from the terminal
+
 
 # Receiving Support
 You can find me here incase you need any help setting it up or just want to hang with the community.
