@@ -24,7 +24,7 @@ curl -sL https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x 
 
 **Required:**
 
-- calibre - for obvious reasons
+- calibre - for the database
 - jq - to pass the  json data
 - fzf - for the main ui
   
