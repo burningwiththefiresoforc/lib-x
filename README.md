@@ -62,6 +62,4 @@ You can find me here incase you need any help setting it up or just want to hang
 # supporting the project
 Give the project a star and consider contributing directly to the code
 
-[![upwork](https://img.shields.io/badge/Upwork-05122A?style=flat&logo=upwork)](https://www.upwork.com/freelancers/~0165dbc694969774ed?viewMode=1)
-
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Y8Y8ZAA7N)
