@@ -6,4 +6,4 @@
 -Reordered some of the menu items  
 -Made the icons more consistent  
 -Spelling corrections  
--Disabled automatic updates. Seems potentially unsafe.  
+-Disabled automatic update checking. Seems potentially unsafe. 
