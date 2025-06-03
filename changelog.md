@@ -1,8 +1,8 @@
 ### Fixes 1.1
--Added escape key functionality to the rofi menus
--Simplified menu structure
--Fixed confirmation menus for rofi
--Some cleanup
+-Added escape key functionality to the rofi menus  
+-Simplified menu structure  
+-Fixed confirmation menus for rofi  
+-Some cleanup  
 
 ### Fixes 1.0  
 
