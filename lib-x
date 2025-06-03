@@ -243,6 +243,9 @@ prompt() {
 confirm() {
   if command -v "gum" >/dev/null 2>&1; then
     gum confirm "$1"
+  elif [[ $PREFERRED_SELECTOR == "rofi" ]]; then
+    selection=$(printf "No\nYes" | rofi -dmenu -i -p "$1")
+    [[ "$selection" == "Yes" ]]
   else
     echo "$CLI_HEADER" >/dev/stderr
     printf "$1" >/dev/stderr
@@ -380,7 +383,6 @@ launcher() {
       --exact --cycle --ansi
     ;;
   esac
-
 }
 
 launcher_with_preview() {
@@ -405,8 +407,8 @@ launcher_with_preview() {
       --ansi --preview="$LIB_X_PREVIEW"
     ;;
   esac
-
 }
+
 user_lists_manager() {
   case "$1" in
   "Reading")
@@ -587,15 +589,17 @@ user_lists_manager() {
     ;;
   esac
 }
+
 byebye() {
-  notify-send "Calibre" "Have a good day $USERNAME"
+  send_notification "Have a good day."
   exit 0
 }
+
 main() {
 
   init_pretty_print
   while true; do
-
+    local books_path
     # ---- main menu ----
     if [[ -n "$GO_DIRECTLY_TO" ]]; then
       action="$GO_DIRECTLY_TO"
@@ -615,7 +619,9 @@ ${CYAN}${RESET}  Docs
 ${CYAN}${RESET}  Random
 ${CYAN}${RESET}  Dropped
 ${CYAN}${RESET}  Edit Config
-${CYAN}${RESET}  Miscellaneous
+${CYAN}${RESET}  Add Books
+${CYAN}${RESET}  Add Books From Folder
+${CYAN}${RESET}  Reload Data
 ${RED}󰈆${RESET}  Exit\n" "$_categories" | launcher | sed 's/^.  //g')
     fi
     if [[ $? -ne 0 || -z "$action" || "$action" == *Exit* ]]; then
@@ -760,22 +766,7 @@ ${RED}󰈆${RESET}  Exit\n" "$_categories" | launcher | sed 's/^.  //g')
       continue
       load_config
       ;;
-    "Miscellaneous")
-      while true; do
-
-        local miscellaneous_action
-        local books_path
-        miscellaneous_action=$(printf "\
-${CYAN}${RESET}  Add Books
-${CYAN}${RESET}  Add Books From Folder
-${CYAN}${RESET}  Reload Data
-${CYAN}←${RESET}  Back
-${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g')
-	if [[ $? -ne 0 || -z "$miscellaneous_action" ]]; then
-		break
-	fi
-        case "$miscellaneous_action" in
-        Add\ Books\ From\ Folder)
+    Add\ Books\ From\ Folder)
           if [[ "$FILE_EXPLORER" == "yazi" && $PREFERRED_SELECTOR == "fzf" ]]; then
             yazi --cwd-file "$CLI_CACHE_DIR/books_path"
             books_path=$(cat "$CLI_CACHE_DIR/books_path")
@@ -799,10 +790,10 @@ ${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g')
           fi
           confirm "Would you like to proceed in adding books?" && calibredb add "$books_path" $custom_args || send_notification "Failed to add books"
           ;;
-        Reload\ Data)
+   Reload\ Data)
           send_notification "Reloading calibre data" && FORCE_UPDATE_DB="true" reload_calibre_data
           ;;
-        Add\ Books)
+   Add\ Books)
           if [[ "$FILE_EXPLORER" == "yazi" && $PREFERRED_SELECTOR == "fzf" ]]; then
             yazi --cwd-file "$CLI_CACHE_DIR/books_path"
             books_path=$(cat "$CLI_CACHE_DIR/books_path")
@@ -826,19 +817,6 @@ ${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g')
           fi
           confirm "Would you like to proceed in adding books?" && echo "$books_path" | xargs -I "%s" -- calibredb add "%s" $custom_args && send_notification "Success" || send_notification "Failed to add books"
           ;;
-        Back)
-          break
-          ;;
-        Exit)
-          byebye
-          ;;
-        *)
-          send_notification "Invalid action"
-          ;;
-        esac
-      done
-      continue
-      ;;
     *)
       send_notification 'invalid action'
       continue
@@ -873,8 +851,7 @@ ${CYAN}${RESET}  Remove From List
 ${CYAN}${RESET}  Remove Book
 ${CYAN}${RESET}  Edit Metadata
 ${CYAN}←${RESET}  Back
-${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g'
-        )
+${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g')
         if [[ $? -ne 0 || -z "$action" ]]; then
 		break
 	fi
@@ -902,11 +879,11 @@ ${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g'
           [ "$DISOWN_READING_PROCESS" = "false" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && wait
           ;;
         "Add To List")
-          list_to_add_to=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped\nRecent" | launcher "Select List")
+          list_to_add_to=$(printf "Reading\nPaused\nPlanning\nRe-reading\nDocs\nCompleted\nDropped\nRecent" | launcher "Select List")
           user_lists_manager "$list_to_add_to" "add"
           ;;
         "Remove From List")
-          list_to_remove_from=$(printf "Reading\nPaused\nPlaning\nRe-reading\nDocs\nCompleted\nDropped\nRecent" | launcher "Select List")
+          list_to_remove_from=$(printf "Reading\nPaused\nPlanning\nRe-reading\nDocs\nCompleted\nDropped\nRecent" | launcher "Select List")
           user_lists_manager "$list_to_remove_from" "remove"
           ;;
         Remove\ Book)
@@ -937,7 +914,6 @@ timestamp
 title
 title_sort
 Cancel\n" | launcher)
-
 	if [[ -z "$metadata_field" || "$metadata_field" == "Cancel" || $? -ne 0 ]]; then
 	  send_notification "Metadata editing canceled."
 	  continue
@@ -957,10 +933,6 @@ Cancel\n" | launcher)
 	calibredb backup_metadata
 	reload_calibre_data
 	;;  
-        "Main Menu")
-          MAIN=true
-          break
-          ;;
         "Exit")
           byebye
           ;;
@@ -970,10 +942,6 @@ Cancel\n" | launcher)
         esac
         clear
       done
-      if [ "$MAIN" = true ]; then
-        MAIN=false
-        break
-      fi
     done
   done
 }
