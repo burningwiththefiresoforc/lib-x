@@ -1,3 +1,6 @@
+### Fixes 1.1
+-Added escape key functionality to the rofi menus.
+
 ### Fixes 1.0  
 ### Changed  
 -Changed script notifications from terminal notifications to notify-send for integration into dunst or other notification daemons  
@@ -6,4 +9,4 @@
 -Reordered some of the menu items  
 -Made the icons more consistent  
 -Spelling corrections  
--Disabled automatic update checking. Seems potentially unsafe. 
+-Disabled automatic update checking. 
