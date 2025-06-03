@@ -1,3 +1,8 @@
+### Fixes 1.2
+-Removed list enumeration which seemed to be causing some issues with jq  
+-Fixed jq parsing errors due to some escaping issues and weird calibredb outputs  
+-Added some functionality to leave the user categories menus cleanly  
+
 ### Fixes 1.1
 -Added escape key functionality to the rofi menus  
 -Simplified menu structure  
@@ -6,7 +11,7 @@
 
 ### Fixes 1.0  
 
--Changed script notifications from terminal notifications to notify-send for integration into dunst or other notification daemons  
+-Changed notifications from terminal notifications to notify-send for integration into dunst or other notification daemons. Removed NOTIFICATION_DURATION.  
 -Fixed the rofi menu cutting off the exit option making it difficult to exit the menu loop  
 -Added functionality for the rofi menu to pull up yazi or fzf with a terminal in a new option PREFERRED_TERMINAL when adding books. Default terminal is kitty. Not tested with other terminals.  
 -Reordered some of the menu items  
