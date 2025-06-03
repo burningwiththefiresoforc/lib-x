@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #A script written by Benexl in September 4, 2024 under GNU GENERAL PUBLIC LICENSE
+#Contributions by burningwiththefiresoforc
 
 CLI_HEADER='
 ██╗░░░░░██╗██████╗░░░░░░░██╗░░██╗
@@ -55,9 +56,6 @@ UPDATE_RECENT: $UPDATE_RECENT
 
 # the number of recent videos to keep
 NO_OF_RECENT: $NO_OF_RECENT
-
-# the duration notifications stay on the screen
-NOTIFICATION_DURATION: $NOTIFICATION_DURATION
 
 # the path to the calibre library
 CALIBRE_LIBRARY_PATH: $CALIBRE_LIBRARY_PATH
@@ -127,9 +125,6 @@ load_config() {
 
   NO_OF_RECENT="$(awk -F': ' '/^NO_OF_RECENT:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
   [ -z "$NO_OF_RECENT" ] && NO_OF_RECENT=30
-
-  NOTIFICATION_DURATION="$(awk -F': ' '/^NOTIFICATION_DURATION:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$NOTIFICATION_DURATION" ] && NOTIFICATION_DURATION=5
 
   ROFI_THEME="$(awk -F': ' '/^ROFI_THEME:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
 
@@ -268,6 +263,7 @@ core_dep_ch() {
   ! command -v "jq" >/dev/null 2>&1 && echo jq is not installed and is a core dep please install it to proceed && exit 1
   ! command -v "fzf" >/dev/null 2>&1 && echo fzf is not installed and is a core dep please install it to proceed && exit 1
 }
+
 send_notification() {
   local msg="$1"
   notify-send "Calibre" "$msg"
@@ -347,6 +343,7 @@ update_script() {
   fi
   exec "$lib_x_path"
 }
+
 check_update() {
   update=$(curl -s "https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x")
   update="$(printf '%s\n' "$update" | diff -u "$(command -v lib-x)" - 2>/dev/null)"
@@ -374,6 +371,7 @@ launcher() {
     ;;
   *)
     fzf \
+      --exit-0 \ 
       --info=hidden \
       --layout=reverse \
       --height=100% \
@@ -590,7 +588,6 @@ user_lists_manager() {
   esac
 }
 byebye() {
-#  clear
   notify-send "Calibre" "Have a good day $USERNAME"
   exit 0
 }
@@ -620,6 +617,10 @@ ${CYAN}${RESET}  Dropped
 ${CYAN}${RESET}  Edit Config
 ${CYAN}${RESET}  Miscellaneous
 ${RED}󰈆${RESET}  Exit\n" "$_categories" | launcher | sed 's/^.  //g')
+    fi
+    if [[ $? -ne 0 || -z "$action" || "$action" == *Exit* ]]; then
+	    byebye
+  	    exit
     fi
     case "$action" in
     # ---- user lists ----
@@ -759,9 +760,6 @@ ${RED}󰈆${RESET}  Exit\n" "$_categories" | launcher | sed 's/^.  //g')
       continue
       load_config
       ;;
-    "Exit")
-      byebye
-      ;;
     "Miscellaneous")
       while true; do
 
@@ -773,6 +771,9 @@ ${CYAN}${RESET}  Add Books From Folder
 ${CYAN}${RESET}  Reload Data
 ${CYAN}←${RESET}  Back
 ${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g')
+	if [[ $? -ne 0 || -z "$miscellaneous_action" ]]; then
+		break
+	fi
         case "$miscellaneous_action" in
         Add\ Books\ From\ Folder)
           if [[ "$FILE_EXPLORER" == "yazi" && $PREFERRED_SELECTOR == "fzf" ]]; then
@@ -874,6 +875,9 @@ ${CYAN}${RESET}  Edit Metadata
 ${CYAN}←${RESET}  Back
 ${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g'
         )
+        if [[ $? -ne 0 || -z "$action" ]]; then
+		break
+	fi
         case "$action" in
         "Read")
           # update recent list
@@ -912,8 +916,8 @@ ${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g'
         "Back")
           break
           ;;
-        Edit\ Metadata)
-          metadata_field=$(printf "\
+  Edit\ Metadata)
+      metadata_field=$(printf "\
 author_sort
 authors
 comments
@@ -932,14 +936,27 @@ tags
 timestamp
 title
 title_sort
-cover" | launcher "Select field to edit")
-          book_id="$(echo "$book" | jq -r '.id')"
-          calibredb show_metadata "$book_id"
-          metadata_val=$(prompt "Enter new value for $metadata_field")
-          calibredb set_metadata "$book_id" --field "$metadata_field:$metadata_val"
-          calibredb backup_metadata
-          reload_calibre_data
-          ;;
+Cancel\n" | launcher)
+
+	if [[ -z "$metadata_field" || "$metadata_field" == "Cancel" || $? -ne 0 ]]; then
+	  send_notification "Metadata editing canceled."
+	  continue
+	fi
+
+	book_id="$(echo "$book" | jq -r '.id')"
+	calibredb show_metadata "$book_id"
+
+	metadata_val=$(prompt "Enter new value for $metadata_field")
+
+	if [[ -z "$metadata_val" ]]; then
+	  send_notification "No value entered. Not updated."
+	  continue
+	fi
+
+	calibredb set_metadata "$book_id" --field "$metadata_field:$metadata_val"
+	calibredb backup_metadata
+	reload_calibre_data
+	;;  
         "Main Menu")
           MAIN=true
           break
@@ -1196,20 +1213,5 @@ done
 
 reload_calibre_data
 
-# setup for ui
-timestamp_file="$CLI_CACHE_DIR/last_update_check"
-
-# Time interval in seconds (6 hours = 21600 seconds)
-interval=$((6 * 60 * 60))
-
-# Determine whether to run the update check
-#current_time=$(date +%s)
-#last_check_time=$(cat "$timestamp_file" 2>/dev/null || echo 0)
-
-#if ((current_time - last_check_time >= interval)); then
-#  check_update "A new version of $CLI_NAME has been found would you like to upgrade(y/n)"
-#  echo "$current_time" >"$timestamp_file"
-#fi
 core_dep_ch
-
 main
