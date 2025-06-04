@@ -78,7 +78,7 @@ PREFERRED_TERMINAL: $PREFERRED_TERMINAL
 }
 
 load_config() {
-  local config_file="$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+  config_file="$CLI_CONFIG_FILE"
   [ -f "$config_file" ] || touch "$config_file"
 
   declare -A list_names=(
@@ -105,7 +105,7 @@ load_config() {
     ["FILE_EXPLORER"]="$(command -v yazi &>/dev/null && echo yazi || echo fzf)"
     ["IMAGE_RENDERER"]="$([ -n \"$KITTY_WINDOW_ID\" ] && echo icat || echo chafa)"
     ["DISOWN_READING_PROCESS"]="true"
-    ["EDITOR"]="${EDITOR:-open}"
+    ["PREFERRED_EDITOR"]="${EDITOR:-open}"
     ["PREFERRED_SELECTOR"]="fzf"
     ["ENABLE_PREVIEW"]="false"
     ["UPDATE_RECENT"]="true"
@@ -134,7 +134,7 @@ load_config() {
   '}
   export FZF_DEFAULT_OPTS IMAGE_RENDERER
 
-  print_config >"$CLI_CONFIG_FILE"
+  print_config > "$CLI_CONFIG_FILE"
 }
 
 LIB_X_PREVIEW="
@@ -495,8 +495,8 @@ ${RED}󰈆${RESET}  Exit\n" "$_categories" | launcher 0 | sed 's/^.  //g')
     # ---- others ----
     "Edit Config")
       $PREFERRED_EDITOR "$CLI_CONFIG_FILE"
-      continue
       load_config
+      continue
       ;;
     "Add Books From Folder")
           if [[ "$FILE_EXPLORER" == "yazi" && $PREFERRED_SELECTOR == "fzf" ]]; then
