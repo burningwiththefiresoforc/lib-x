@@ -1,7 +1,11 @@
+### Fixes 1.3
+-A whole bunch more refactoring (thanks AI)
+
 ### Fixes 1.2
 -Removed list enumeration which seemed to be causing some issues with jq  
 -Fixed jq parsing errors due to some escaping issues and weird calibredb outputs  
 -Added some functionality to leave the user categories menus cleanly  
+-Some refactoring and more cleanup  
 
 ### Fixes 1.1
 -Added escape key functionality to the rofi menus  
