@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #A script written by Benexl in September 4, 2024 under GNU GENERAL PUBLIC LICENSE
-#Contributions by burningwiththefiresoforc
+#vibe coded contributions by burningwiththefiresoforc
 
 CLI_HEADER='
 ██╗░░░░░██╗██████╗░░░░░░░██╗░░██╗
@@ -78,63 +78,52 @@ PREFERRED_TERMINAL: $PREFERRED_TERMINAL
 }
 
 load_config() {
-  ! [ -f "$CLI_CONFIG_DIR/${CLI_NAME}.conf" ] && touch "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
-  DB_READING_LIST="$CLI_DBS_DIR/reading_list"
-  ! [ -f "$DB_READING_LIST" ] && touch "$DB_READING_LIST"
-  DB_PAUSED_LIST="$CLI_DBS_DIR/paused_list"
-  ! [ -f "$DB_PAUSED_LIST" ] && touch "$DB_PAUSED_LIST"
-  DB_PLANING_LIST="$CLI_DBS_DIR/planing_list"
-  ! [ -f "$DB_PLANING_LIST" ] && touch "$DB_PLANING_LIST"
-  DB_RE_READING_LIST="$CLI_DBS_DIR/re_reading_list"
-  ! [ -f "$DB_RE_READING_LIST" ] && touch "$DB_RE_READING_LIST"
-  DB_COMPLETED_LIST="$CLI_DBS_DIR/completed_list"
-  ! [ -f "$DB_COMPLETED_LIST" ] && touch "$DB_COMPLETED_LIST"
-  DB_DROPPED_LIST="$CLI_DBS_DIR/dropped_list"
-  ! [ -f "$DB_DROPPED_LIST" ] && touch "$DB_DROPPED_LIST"
-  DB_DOCS_LIST="$CLI_DBS_DIR/docs_list"
-  ! [ -f "$DB_DOCS_LIST" ] && touch "$DB_DOCS_LIST"
-  DB_RECENT_LIST="$CLI_DBS_DIR/recent"
-  ! [ -f "$DB_RECENT_LIST" ] && touch "$DB_RECENT_LIST"
+  local config_file="$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+  [ -f "$config_file" ] || touch "$config_file"
 
-  CALIBRE_LIBRARY_PATH="$(awk -F': ' '/^CALIBRE_LIBRARY_PATH:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$CALIBRE_LIBRARY_PATH" ] && CALIBRE_LIBRARY_PATH="$HOME/Calibre Library"
+  declare -A list_names=(
+    ["READING"]="reading_list"
+    ["PAUSED"]="paused_list"
+    ["PLANING"]="planing_list"
+    ["RE_READING"]="re_reading_list"
+    ["COMPLETED"]="completed_list"
+    ["DROPPED"]="dropped_list"
+    ["DOCS"]="docs_list"
+    ["RECENT"]="recent"
+  )
 
-  PRETTY_PRINT="$(awk -F': ' '/^PRETTY_PRINT:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$PRETTY_PRINT" ] && PRETTY_PRINT="true"
+  for key in "${!list_names[@]}"; do
+    local var="DB_${key}_LIST"
+    local path="$CLI_DBS_DIR/${list_names[$key]}"
+    [ -f "$path" ] || touch "$path"
+    export "$var"="$path"
+  done
 
-  FILE_EXPLORER="$(awk -F': ' '/^FILE_EXPLORER:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$FILE_EXPLORER" ] && if command -v "yazi" &>/dev/null; then FILE_EXPLORER="yazi"; else FILE_EXPLORER="fzf"; fi
+  declare -A config_defaults=(
+    ["CALIBRE_LIBRARY_PATH"]="$HOME/Calibre Library"
+    ["PRETTY_PRINT"]="true"
+    ["FILE_EXPLORER"]="$(command -v yazi &>/dev/null && echo yazi || echo fzf)"
+    ["IMAGE_RENDERER"]="$([ -n \"$KITTY_WINDOW_ID\" ] && echo icat || echo chafa)"
+    ["DISOWN_READING_PROCESS"]="true"
+    ["EDITOR"]="${EDITOR:-open}"
+    ["PREFERRED_SELECTOR"]="fzf"
+    ["ENABLE_PREVIEW"]="false"
+    ["UPDATE_RECENT"]="true"
+    ["NO_OF_RECENT"]="30"
+    ["NO_OF_RANDOM_BOOKS"]="30"
+    ["PREFERRED_TERMINAL"]="kitty"
+  )
 
-  IMAGE_RENDERER="$(awk -F': ' '/^IMAGE_RENDERER:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$IMAGE_RENDERER" ] && IMAGE_RENDERER=$([ -n "$KITTY_WINDOW_ID" ] && echo "icat" || echo "chafa")
+  for key in "${!config_defaults[@]}"; do
+    local value
+    value="$(awk -F': ' -v k="$key" '$1 == k && !/^#/ { print $2 }' "$config_file")"
+    [ -z "$value" ] && value="${config_defaults[$key]}"
+    export "$key"="$value"
+  done
 
-  DISOWN_READING_PROCESS="$(awk -F': ' '/^DISOWN_READING_PROCESS:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$DISOWN_READING_PROCESS" ] && DISOWN_READING_PROCESS="true"
+  ROFI_THEME="$(awk -F': ' '/^ROFI_THEME:/ && !/#/ {print $2}' "$config_file")"
+  export ROFI_THEME
 
-  PREFERRED_EDITOR="$(awk -F': ' '/^EDITOR:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$PREFERRED_EDITOR" ] && PREFERRED_EDITOR=${EDITOR:-open}
-
-  PREFERRED_SELECTOR="$(awk -F': ' '/^PREFERRED_SELECTOR:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$PREFERRED_SELECTOR" ] && PREFERRED_SELECTOR="fzf"
-
-  ENABLE_PREVIEW="$(awk -F': ' '/^ENABLE_PREVIEW:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$ENABLE_PREVIEW" ] && ENABLE_PREVIEW="false"
-
-  UPDATE_RECENT="$(awk -F': ' '/^UPDATE_RECENT:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$UPDATE_RECENT" ] && UPDATE_RECENT="true"
-
-  NO_OF_RECENT="$(awk -F': ' '/^NO_OF_RECENT:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$NO_OF_RECENT" ] && NO_OF_RECENT=30
-
-  ROFI_THEME="$(awk -F': ' '/^ROFI_THEME:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-
-  NO_OF_RANDOM_BOOKS="$(awk -F': ' '/^NO_OF_RANDOM_BOOKS:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$NO_OF_RANDOM_BOOKS" ] && NO_OF_RANDOM_BOOKS=30
-
-  PREFERRED_TERMINAL="$(awk -F': ' '/^PREFERRED_TERMINAL:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
-  [ -z "$PREFERRED_TERMINAL" ] && PREFERRED_TERMINAL=kitty
-
-  print_config >"$CLI_CONFIG_FILE"
   FZF_DEFAULT_OPTS=${LIBX_FZF_OPTS:-'
     --color=fg:#d0d0d0,fg+:#d0d0d0,bg:#121212,bg+:#262626
     --color=hl:#5f87af,hl+:#5fd7ff,info:#afaf87,marker:#87ff00
@@ -144,6 +133,8 @@ load_config() {
     --marker=">" --pointer="◆" --separator="─" --scrollbar="│"
   '}
   export FZF_DEFAULT_OPTS IMAGE_RENDERER
+
+  print_config >"$CLI_CONFIG_FILE"
 }
 
 LIB_X_PREVIEW="
@@ -259,12 +250,12 @@ core_dep_ch() {
 }
 
 send_notification() {
-  local msg="$1"
-  notify-send "Calibre" "$msg"
+  notify-send "Calibre" "$1"
 }
 
 calibredb_clean() {
   calibredb "$@" | sed '/Initialized urlfixer/d;/^%$/d'; echo "]"
+  #LOL
 }
 
 fzf_preview() {
@@ -339,7 +330,7 @@ update_script() {
 check_update() {
   update=$(curl -s "https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x")
   update="$(printf '%s\n' "$update" | diff -u "$(command -v lib-x)" - 2>/dev/null)"
-  if [ -n "$update" ]; then
+  if [ -zn "$update" ]; then
     confirm "An update has been found would you like to see the changes before deciding whether to update" && echo "$update" | less
     case "$answer" in
     [Yy]*) update_script ;;
@@ -348,215 +339,93 @@ check_update() {
 }
 
 launcher() {
+  strip_ansi() {
+    sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'
+  }
+
   case "$PREFERRED_SELECTOR" in
-  rofi)
-    if [ -z "$ROFI_THEME" ]; then
-	    while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
-    else
-	    while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -no-config -theme "$ROFI_THEME" -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
-    fi
-    ;;
-  *)
-    fzf \
-      --info=hidden \
-      --layout=reverse \
-      --height=100% \
-      --prompt="${1}: " \
-      --header-first --header="$CLI_HEADER" \
-      --exact --cycle --ansi
-    ;;
+    rofi)
+      rofi_args=(-sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Selection:" -sorting-method fzf)
+      [ -n "$ROFI_THEME" ] && rofi_args=(-no-config -theme "$ROFI_THEME" "${rofi_args[@]}")
+      strip_ansi | rofi "${rofi_args[@]}"
+      ;;
+    fzf)
+      local fzf_opts_base=(
+        --info=hidden
+        --layout=reverse
+        --height=100%
+        --prompt="Selection: "
+        --header-first --header="$CLI_HEADER"
+        --exact --cycle --ansi
+      )
+
+      local fzf_opts_preview=(
+        --preview-window=left,35%,wrap
+        --bind=right:accept
+        --expect=shift-left,shift-right
+        --tabstop=1
+        --preview="$LIB_X_PREVIEW"
+      )
+
+      if [[ "$1" == 1 ]]; then
+        fzf "${fzf_opts_base[@]}" "${fzf_opts_preview[@]}"
+      else
+        fzf "${fzf_opts_base[@]}"
+      fi
+      ;;
+    *)
+      echo "Unsupported selector: $PREFERRED_SELECTOR" >&2
+      return 1
+      ;;
   esac
 }
 
-launcher_with_preview() {
-  case "$PREFERRED_SELECTOR" in
-  "rofi")
-    if [ -z "$ROFI_THEME" ]; then
-	    while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -matching fuzzy -sorting-method fzf
-    else
-	    while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -no-config -theme "$ROFI_THEME" -sort -matching fuzzy -dmenu -i -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf
-    fi
-    ;;
-  *)
-    fzf \
-      --info=hidden \
-      --layout=reverse \
-      --height=100% \
-      --prompt="${1}: " \
-      --header-first --header="$CLI_HEADER" \
-      --preview-window=left,35%,wrap --bind=right:accept \
-      --expect=shift-left,shift-right --tabstop=1 \
-      --cycle --exact \
-      --ansi --preview="$LIB_X_PREVIEW"
-    ;;
-  esac
-}
 
 user_lists_manager() {
-  case "$1" in
-  "Reading")
-    if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$DB_READING_LIST"; then
-        send_notification "Already in Reading List"
+  declare -A list_dbs=(
+    ["Reading"]="$DB_READING_LIST"
+    ["Paused"]="$DB_PAUSED_LIST"
+    ["Recent"]="$DB_RECENT_LIST"
+    ["Re-reading"]="$DB_RE_READING_LIST"
+    ["Completed"]="$DB_COMPLETED_LIST"
+    ["Docs"]="$DB_DOCS_LIST"
+    ["Planning"]="$DB_PLANING_LIST"
+    ["Dropped"]="$DB_DROPPED_LIST"
+  )
+
+  local list_name="$1"
+  local action="$2"
+  local db_file="${list_dbs[$list_name]}"
+
+  if [ -z "$db_file" ]; then
+    send_notification "Unknown list: $list_name"
+    return 1
+  fi
+
+  case "$action" in
+    "add")
+      if grep -qs "^${title}\$" "$db_file"; then
+        send_notification "Already in $list_name list"
       else
-        send_notification Adding to reading list...
-        echo "$title" >>"$DB_READING_LIST"
+        send_notification "Adding to $list_name list..."
+        echo "$title" >>"$db_file"
       fi
-    elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$DB_READING_LIST"; then
-        if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          send_notification "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$DB_READING_LIST")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_READING_LIST"
+      ;;
+    "remove")
+      if grep -q "^$title\$" "$db_file"; then
+        if confirm "Are you sure you want to remove '$title' from $list_name List?"; then
+          send_notification "Removing from $list_name list..."
+          updated_list="$(grep -v "^$title\$" "$db_file")"
+          echo "$updated_list" | grep -E '[[:alnum:]]+' >"$db_file"
         fi
       else
-        send_notification "$title is not in your $1 List"
+        send_notification "'$title' is not in your $list_name list"
       fi
-    fi
-    ;;
-  "Paused")
-    if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$DB_PAUSED_LIST"; then
-        send_notification "Already in paused List"
-      else
-        send_notification "Adding to paused list..."
-        echo "$title" >>"$DB_PAUSED_LIST"
-      fi
-    elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$DB_PAUSED_LIST"; then
-        if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          send_notification "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$DB_PAUSED_LIST")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_PAUSED_LIST"
-        fi
-      else
-        send_notification "$title is not in your $1 List"
-      fi
-    fi
-    ;;
-  "Recent")
-    if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$DB_RECENT_LIST"; then
-        send_notification "Already in paused List"
-      else
-        send_notification "Adding to paused list..."
-        echo "$title" >>"$DB_RECENT_LIST"
-      fi
-    elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$DB_RECENT_LIST"; then
-        if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          send_notification "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$DB_RECENT_LIST")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_RECENT_LIST"
-        fi
-      else
-        send_notification "$title is not in your $1 List"
-      fi
-    fi
-    ;;
-  "Re-reading")
-    if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$DB_RE_READING_LIST"; then
-        send_notification "Already in re-reading List"
-      else
-        send_notification "Adding to re-reading list..."
-        echo "$title" >>"$DB_RE_READING_LIST"
-      fi
-    elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$DB_RE_READING_LIST"; then
-        if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          send_notification "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$DB_RE_READING_LIST")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_RE_READING_LIST"
-        fi
-      else
-        send_notification "$title is not in your $1 List"
-      fi
-    fi
-    ;;
-  "Completed")
-    if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$DB_COMPLETED_LIST"; then
-        send_notification "Already in completed List"
-      else
-        send_notification "Adding to completed list..."
-        echo "$title" >>"$DB_COMPLETED_LIST"
-      fi
-    elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$DB_COMPLETED_LIST"; then
-        if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          send_notification "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$DB_COMPLETED_LIST")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_COMPLETED_LIST"
-        fi
-      else
-        send_notification "$title is not in your $1 List"
-      fi
-    fi
-    ;;
-  "Docs")
-    if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$DB_DOCS_LIST"; then
-        send_notification "Already in docs List"
-      else
-        send_notification "Adding to docs list..."
-        echo "$title" >>"$DB_DOCS_LIST"
-      fi
-    elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$DB_DOCS_LIST"; then
-        if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          send_notification "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$DB_DOCS_LIST")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_DOCS_LIST"
-        fi
-      else
-        send_notification "$title is not in your $1 List"
-      fi
-    fi
-    ;;
-  "Planning")
-    if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$DB_PLANING_LIST"; then
-        send_notfication "Already in planning List"
-      else
-        send_notification "Adding to planning list..."
-        echo "$title" >>"$DB_PLANING_LIST"
-      fi
-    elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$DB_PLANING_LIST"; then
-        if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          send_notification "removing from $1 List..."
-          updated_list="$(grep --invert-match "^$title\$" <"$DB_PLANING_LIST")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_PLANING_LIST"
-        fi
-      else
-        send_notification "$title is not in your $1 List"
-      fi
-    fi
-    ;;
-  "Dropped")
-    if [ "$2" = "add" ]; then
-      if grep "^${title}\$" -s -q <"$DB_DROPPED_LIST"; then
-        send_notification "Already in dropped list"
-      else
-        send_notification "Adding to dropped list..."
-        echo "$title" >>"$DB_DROPPED_LIST"
-      fi
-    elif [ "$2" = "remove" ]; then
-      if grep "^$title\$" -q <"$DB_DROPPED_LIST"; then
-        if confirm "Are you sure you want to remove '$title' from  $1 List?"; then
-          send_notification "removing from $1 list..."
-          updated_list="$(grep --invert-match "^$title\$" <"$DB_DROPPED_LIST")"
-          echo "$updated_list" | grep --extended-regexp '[[:alnum:]]+' >"$DB_DROPPED_LIST"
-        fi
-      else
-        send_notification "$title is not in your $1 list."
-      fi
-    fi
-    ;;
-  *)
-    send_notification "Unknown option."
-    ;;
+      ;;
+    *)
+      send_notification "Unknown action: $action"
+      return 1
+      ;;
   esac
 }
 
@@ -586,181 +455,43 @@ ${CYAN}${RESET}  Edit Config
 ${CYAN}${RESET}  Add Books
 ${CYAN}${RESET}  Add Books From Folder
 ${CYAN}${RESET}  Reload Data
-${RED}󰈆${RESET}  Exit\n" "$_categories" | launcher | sed 's/^.  //g')
+${RED}󰈆${RESET}  Exit\n" "$_categories" | launcher 0 | sed 's/^.  //g')
     fi
     if [[ $? -ne 0 || -z "$action" || "$action" == *Exit* ]]; then
   	    exit 0
     fi
-    case "$action" in
-    # ---- user lists ----
-    "Reading-List")
-      if [ -s "$DB_READING_LIST" ]; then
-        titles="$(cat "$DB_READING_LIST")"
-      else
-        send_notification "You dont have anything in your reading list" && continue
-      fi
-      ;;
-    "Recent")
-      if [ -s "$DB_RECENT_LIST" ]; then
-        titles="$(tac "$DB_RECENT_LIST")"
-      else
-        send_notification "You dont have anything in your recent list" && continue
-      fi
-      ;;
-    "Dropped")
-      if [ -s "$DB_DROPPED_LIST" ]; then
-        titles="$(cat "$DB_DROPPED_LIST")"
-      else
-        send_notification "You dont have anything in your dropped list" && continue
-      fi
-      ;;
-    "Paused")
-      if [ -s "$DB_PAUSED_LIST" ]; then
-        titles="$(cat "$DB_PAUSED_LIST")"
-      else
-        send_notification "You dont have anything in your paused list" && continue
-      fi
-      ;;
-    "Completed")
-      if [ -s "$DB_COMPLETED_LIST" ]; then
-        titles="$(cat "$DB_COMPLETED_LIST")"
-      else
-        send_notification "You dont have anything in your completed list" && continue
-      fi
-      ;;
-    "Re-reading")
-      if [ -s "$DB_RE_READING_LIST" ]; then
-        titles="$(cat "$DB_RE_READING_LIST")"
-      else
-        send_notification "You dont have anything in your re-reading list" && continue
-      fi
-      ;;
-    "Planning")
-      if [ -s "$DB_PLANING_LIST" ]; then
-        titles="$(cat "$DB_PLANING_LIST")"
-      else
-        send_notification "You dont have anything in your planning list" && continue
-      fi
-      ;;
-    "Docs")
-      if [ -s "$DB_DOCS_LIST" ]; then
-        titles="$(cat "$DB_DOCS_LIST")"
-      else
-        send_notification "You dont have anything in your docs list" && continue
-      fi
-      ;;
-    # ---- others ----
-    "All")
-      titles="$(echo "$CALIBRE_DB" | jq -r '.[].title')"
-      ;;
-    "Random")
-      titles="$(echo "$CALIBRE_DB" | jq -r '.[].title' | shuf -n "$NO_OF_RANDOM_BOOKS")"
-      ;;
+
+   # ---- others ----
+   case "$action" in
+  "All"|"Random")
+    titles=$(echo "$CALIBRE_DB" | jq -r '.[].title')
+    if [[ "$action" == "Random" ]]; then
+      titles=$(echo "$titles" | shuf -n "$NO_OF_RANDOM_BOOKS")
+    fi
+    ;;
     # ---- calibre search ----
-    "Formats")
-	    format=$(echo "$CALIBRE_CATEGORIES" | grep "^formats" | cut -d , -f 2 | launcher | tr -d '"' | sed 's/[]\/$*.^|[]/ /g' | xargs)
-      if [ -n "$format" ]; then
-      if [ -n "$SORT_BY" ]; then
-        titles=$(calibredb_clean list --search "format:\"$format\"" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-      else
-        titles=$(calibredb_clean list --search "format:\"$format\"" --for-machine --fields=title | jq '.[].title' -r)
-      fi
-else
-	titles=""
-continue	
-      fi
-      ;;
-    "Series")
-	    series=$(echo "$CALIBRE_CATEGORIES" | grep "^series" | cut -d , -f 2 | launcher | tr -d '"' | sed 's/[]\/$*.^|[]/ /g' | xargs)
-      if [ -n "$series" ]; then
-      if [ -n "$SORT_BY" ]; then
-        titles=$(calibredb_clean list --search "series:\"$series\"" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-      else
-        titles=$(calibredb_clean list --search "series:\"$series\"" --for-machine --fields=title | jq '.[].title' -r)
-      fi
-else
-	titles=""
-	continue
-      fi
-      ;;
-    "Languages")
-	    language=$(echo "$CALIBRE_CATEGORIES" | grep "^languages" | cut -d , -f 2 | launcher | tr -d '"' | sed 's/[]\/$*.^|[]/ /g' | xargs)
-      if [ -n "$language" ]; then
-      if [ -n "$SORT_BY" ]; then
-        titles=$(calibredb_clean list --search "language:\"$language\"" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-      else
-        titles=$(calibredb_clean list --search "language:\"$language\"" --for-machine --fields=title | jq '.[].title' -r)
-      fi
-      else
-	titles=""
-	continue
-      fi
-      ;;
-    "Tags")
-	    tag=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"' | sed 's/[]\/$*.^|[]/ /g' | xargs)
-      if [ -n "$tag" ]; then
-      if [ -n "$SORT_BY" ]; then
-        titles=$(calibredb_clean list --search "tag:\"$tag\"" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-      else
-        titles=$(calibredb_clean list --search "tag:\"$tag\"" --for-machine --fields=title | jq '.[].title' -r)
-      fi
-else
-	titles=""
-	continue
-      fi
-      ;;
-    "Rating")
-	    rating=$(echo "$CALIBRE_CATEGORIES" | grep "^tags" | cut -d , -f 2 | launcher | tr -d '"' | sed 's/[]\/$*.^|[]/ /g' | xargs)
-      if [ -n "$rating" ]; then
-      if [ -n "$SORT_BY" ]; then
-        titles=$(calibredb_clean list --search "rating:\"$rating\"" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-      else
-        titles=$(calibredb_clean list --search "rating:\"$rating\"" --for-machine --fields=title | jq '.[].title' -r)
-      fi
-else
-	titles=""
-	continue
-      fi
-      ;;
-    "Publisher")
-	    publisher=$(echo "$CALIBRE_CATEGORIES" | grep "^publisher" | cut -d , -f 2 | launcher | tr -d '"' | sed 's/[]\/$*.^|[]/ /g' | xargs)
-      if [ -n "$publisher" ]; then
-      if [ -n "$SORT_BY" ]; then
-        titles=$(calibredb_clean list --search "publisher:\"$publisher\"" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-      else
-        titles=$(calibredb_clean list --search "publisher:\"$publisher\"" --for-machine --fields=title | jq '.[].title' -r)
-      fi
-else
-	titles=""
-	continue
-      fi
-      ;;
-    "Identifiers")
-	    identifier=$(echo "$CALIBRE_CATEGORIES" | grep "^identifiers" | cut -d , -f 2 | launcher | tr -d '"' | sed 's/[]\/$*.^|[]/ /g' | xargs)
-      if [ -n "$identifier" ]; then
-      if [ -n "$SORT_BY" ]; then
-        titles=$(calibredb_clean list --search "identifier:\"$identifier\"" --sort "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-      else
-        titles=$(calibredb_clean list --search "identifier:\"$identifier\"" --for-machine --fields=title | jq '.[].title' -r)
-      fi
-else
-	titles=""
-	continue
-      fi
-      ;;
-    "Authors")
-	    series=$(echo "$CALIBRE_CATEGORIES" | grep "^authors" | cut -d , -f 2 | launcher | tr -d '"' | sed 's/[]\/$*.^|[]/ /g' | xargs)
-      if [ -n "$series" ]; then
-      if [ -n "$SORT_BY" ]; then
-        titles=$(calibredb_clean list --search "author:\"$series\"" --sort "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
-      else
-        titles=$(calibredb_clean list --search "author:\"$series\"" --for-machine --fields=title | jq '.[].title' -r)
-      fi
-else
-	titles=""
-	continue
-      fi
-      ;;
+   "Formats"|"Series"|"Languages"|"Tags"|"Rating"|"Publisher"|"Identifiers"|"Authors")
+  field=$(echo "$action" | tr '[:upper:]' '[:lower:]')
+  value=$(echo "$CALIBRE_CATEGORIES" | grep "^$field" | cut -d , -f 2 | launcher 0 | tr -d '"' | sed 's/[]\/$*.^|[]/ /g' | xargs)
+
+  if [ -z "$value" ]; then
+    titles=""
+    continue
+  fi
+
+  case "$field" in
+    authors) calibre_field="author" ;;
+    identifiers) calibre_field="identifier" ;;
+    languages) calibre_field="language" ;;
+    *) calibre_field="$field" ;;
+  esac
+
+  if [ -n "$SORT_BY" ]; then
+    titles=$(calibredb_clean list --search "$calibre_field:\"$value\"" --sort-by "$SORT_BY" --for-machine --fields=title | jq '.[].title' -r)
+  else
+    titles=$(calibredb_clean list --search "$calibre_field:\"$value\"" --for-machine --fields=title | jq '.[].title' -r)
+  fi
+  ;;
     # ---- others ----
     "Edit Config")
       $PREFERRED_EDITOR "$CLI_CONFIG_FILE"
@@ -785,7 +516,7 @@ else
           fi
 
           if confirm "Would you like to input custom args (default: calibre_db add '$books_path')"; then
-            #clear
+            clear
             calibredb add --help
             custom_args=$(prompt "Enter your custom args separated by spaces")
           fi
@@ -812,37 +543,53 @@ else
           fi
 
           if confirm "Would you like to input custom args (default: calibre_db add '$books_path')"; then
-            #clear
+            clear
             calibredb add --help
             custom_args=$(prompt "Enter your custom args separated by spaces")
           fi
           confirm "Would you like to proceed in adding books?" && echo "$books_path" | xargs -I "%s" -- calibredb add "%s" $custom_args && send_notification "Success" || send_notification "Failed to add books"
           ;;
+  "Reading-List"|"Dropped"|"Paused"|"Completed"|"Re-reading"|"Planning"|"Docs"|"Recent")
+    normalized_action="${action//[- ]/_}"
+    normalized_action="${normalized_action^^}"
+    var_name="DB_${normalized_action}_LIST"
+    file="${!var_name}"
+
+if [ -s "$file" ]; then
+  if [ "$action" = "Recent" ]; then
+    titles="$(tac "$file")"
+  else
+    titles="$(cat "$file")"
+  fi
+    else
+	pretty_name="$(echo "$action" | tr '[:upper:]' '[:lower:]')"
+      send_notification "You don't have anything in your ${pretty_name} list" && continue
+    fi
+    ;;
     *)
       send_notification 'invalid action'
       continue
       ;;
     esac
-    #clear
+    clear
 
     # book selection loop
     while true; do
       # ---- select book ----
-      SHELL="bash"
-      export SHELL
-      export -f fzf_preview init_pretty_print
-      if [ "$ENABLE_PREVIEW" = "true" ]; then
-        title=$(printf "%s\nBack\nExit" "$titles" | launcher_with_preview "Select Book" | tr -d "\n")
-      else
-        title=$(printf "%s\nBack\nExit" "$titles" | launcher "Select Book" | tr -d "\n")
-      fi
-      [ "$title" = "Exit" ] && exit 0
-      [ "$title" = "Back" ] && break
-      [ -z "$title" ] && send_notification "Nothing has been selected" && break
-      #clear
-      book=$(cat "$CALIBRE_DB_JSON_FILE" | jq "map(select(.title == \"$title\")) | .[0]")
-
-      # ---- book actions ----
+export SHELL="bash"
+export -f fzf_preview init_pretty_print
+launcher_flag=$([[ "$ENABLE_PREVIEW" == "true" ]] && echo 1 || echo 0)
+title=$(printf "%s\nBack\nExit" "$titles" | launcher "$launcher_flag" | tr -d '\n')
+case "$title" in
+  "Exit") exit 0 ;;
+  "Back"|"") 
+    [[ -z "$title" ]] && send_notification "Nothing has been selected"
+    break
+    ;;
+esac
+clear
+book=$(jq -r --arg title "$title" 'map(select(.title == $title)) | .[0]' < "$CALIBRE_DB_JSON_FILE")
+           # ---- book actions ----
       while true; do
         action=$(
           printf "\
@@ -852,7 +599,7 @@ ${CYAN}${RESET}  Remove From List
 ${CYAN}${RESET}  Remove Book
 ${CYAN}${RESET}  Edit Metadata
 ${CYAN}←${RESET}  Back
-${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g')
+${RED}󰈆${RESET}  Exit\n" | launcher 0 | sed 's/^.  //g')
         if [[ $? -ne 0 || -z "$action" || "$action" == *Back* ]]; then
 		break
 	fi
@@ -878,14 +625,11 @@ ${RED}󰈆${RESET}  Exit\n" | launcher | sed 's/^.  //g')
           [ "$DISOWN_READING_PROCESS" = "true" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && disown
           [ "$DISOWN_READING_PROCESS" = "false" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && wait
           ;;
-        "Add To List")
-          list_to_add_to=$(printf "Reading\nPaused\nPlanning\nRe-reading\nDocs\nCompleted\nDropped\nRecent" | launcher "Select List")
-          user_lists_manager "$list_to_add_to" "add"
-          ;;
-        "Remove From List")
-          list_to_remove_from=$(printf "Reading\nPaused\nPlanning\nRe-reading\nDocs\nCompleted\nDropped\nRecent" | launcher "Select List")
-          user_lists_manager "$list_to_remove_from" "remove"
-          ;;
+       "Add To List" | "Remove From List")
+  list_action=$(echo "$action" | awk '{print tolower($1)}')  # "add" or "remove"
+  list_target=$(printf "Reading\nPaused\nPlanning\nRe-reading\nDocs\nCompleted\nDropped\nRecent\n" | launcher 0)
+  user_lists_manager "$list_target" "$list_action"
+  ;; 
         "Remove Book")
           book_id="$(echo "$book" | jq -r '.id')"
           confirm "Are you sure you want to remove $title" && calibredb remove "$book_id" && send_notification "Successfully removed"
@@ -910,7 +654,7 @@ tags
 timestamp
 title
 title_sort
-Cancel\n" | launcher)
+Cancel\n" | launcher 0 )
 	if [[ -z "$metadata_field" || "$metadata_field" == "Cancel" || $? -ne 0 ]]; then
 	  send_notification "Metadata editing canceled."
 	  continue
@@ -933,7 +677,7 @@ Cancel\n" | launcher)
           send_notification "invalid action"
           ;;
         esac
-        #clear
+        clear
       done
     done
   done
