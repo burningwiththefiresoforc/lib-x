@@ -1,5 +1,11 @@
+### Fixes 1.5
+-Any dreams of POSIX compliance are long dead  
+-Much fewer lines of code  
+-Quite a bit snappier now  
+-Removed automatic update functionality entirely.
+
 ### Fixes 1.4
--Added option "Open Book Folder"
+-Added option "Open Book Folder"  
 -Optimizations
 
 ### Fixes 1.3
