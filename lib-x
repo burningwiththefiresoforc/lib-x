@@ -54,7 +54,7 @@ ENABLE_PREVIEW: $ENABLE_PREVIEW
 # whether to update the recent list kept locally [true/false]
 UPDATE_RECENT: $UPDATE_RECENT
 
-# the number of recent videos to keep
+# the number of recent books to keep
 NO_OF_RECENT: $NO_OF_RECENT
 
 # the path to the calibre library
@@ -175,17 +175,19 @@ launch_in_terminal() {
 }
 
 reload_calibre_data() {
-  if [ -n "$SORT_BY" ] && [ -n "$SEARCH" ]; then
-    CALIBRE_DB="$(calibredb_clean list --for-machine --fields all --search "$SEARCH" --sort-by "$SORT_BY")"
-    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
-  elif [ -n "$SORT_BY" ]; then
-    CALIBRE_DB="$(calibredb_clean list --for-machine --fields all --sort-by "$SORT_BY")"
-    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
-  elif [ -n "$SEARCH" ]; then
-    CALIBRE_DB="$(calibredb_clean list --for-machine --fields all --search "$SEARCH")"
-    CALIBRE_CATEGORIES="$(cat "$CALIBRE_CATEGORIES_CSV_FILE")"
+  calibredb_args=(list --for-machine --fields all)
+  [ -n "$SEARCH" ] && calibredb_args+=(--search "$SEARCH")
+  [ -n "$SORT_BY" ] && calibredb_args+=(--sort-by "$SORT_BY")
+  if [ -n "$SEARCH" ] || [ -n "$SORT_BY" ]; then
+    CALIBRE_DB="$(calibredb_clean "${calibredb_args[@]}")"
+    CALIBRE_CATEGORIES="$(<"$CALIBRE_CATEGORIES_CSV_FILE")"
   else
-    if [ "$FORCE_UPDATE_DB" = "true" ] || ! [ -s "$CALIBRE_DB_JSON_FILE" ] || ! [ -s "$CALIBRE_CATEGORIES_CSV_FILE" ] || ! [ -s "$CLI_CACHE_DIR/last_db_timestamp" ] || ! [ "$(cat "$CLI_CACHE_DIR/last_db_timestamp")" = "$(command ls -ld "$CALIBRE_LIBRARY_PATH")" ]; then
+[ ! -s "$CALIBRE_DB_JSON_FILE" ] && FORCE_UPDATE_DB=true
+[ ! -s "$CALIBRE_CATEGORIES_CSV_FILE" ] && FORCE_UPDATE_DB=true
+[ ! -s "$CLI_CACHE_DIR/last_db_timestamp" ] && FORCE_UPDATE_DB=true
+[ -s "$CLI_CACHE_DIR/last_db_timestamp" ] && \
+[ "$(cat "$CLI_CACHE_DIR/last_db_timestamp")" != "$(ls -ld "$CALIBRE_LIBRARY_PATH")" ] && FORCE_UPDATE_DB=true
+    if [ "$FORCE_UPDATE_DB" = "true" ]; then
       calibredb_clean list --for-machine --fields all > "$CALIBRE_DB_JSON_FILE"
       CALIBRE_DB="$(cat "$CALIBRE_DB_JSON_FILE")"
       calibredb_clean list_categories --csv | sed '/]$/d' > "$CALIBRE_CATEGORIES_CSV_FILE"
@@ -260,30 +262,29 @@ calibredb_clean() {
 
 fzf_preview() {
   file=$1
+  tty_size=$(stty size </dev/tty)
+  rows=${tty_size%% *}
+  cols=${tty_size##* }
   dim=${FZF_PREVIEW_COLUMNS}x${FZF_PREVIEW_LINES}
-  if [ "$dim" = x ]; then
-    dim=$(stty size </dev/tty | awk "{print \$2 \"x\" \$1}")
+  if [ "$dim" = "x" ]; then
+	  dim="${cols}x${rows}"
   fi
-  if ! [ "$IMAGE_RENDERER" = "icat" ] && [ -z "$KITTY_WINDOW_ID" ] && [ "$((FZF_PREVIEW_TOP + FZF_PREVIEW_LINES))" -eq "$(stty size </dev/tty | awk "{print \$1}")" ]; then
+  if [ "$IMAGE_RENDERER" != "icat" ] && [ -z "$KITTY_WINDOW_ID" ] && [ "$((FZF_PREVIEW_TOP + FZF_PREVIEW_LINES))" -eq "$rows" ]; then
     dim=${FZF_PREVIEW_COLUMNS}x$((FZF_PREVIEW_LINES - 1))
   fi
-  if [ "$IMAGE_RENDERER" = "icat" ] && [ -z "$GHOSTTY_BIN_DIR" ]; then
-    if command -v kitten >/dev/null 2>&1; then
-      kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
-    elif command -v icat >/dev/null 2>&1; then
+if [ "$IMAGE_RENDERER" = "icat" ]; then
+  if command -v kitten >/dev/null 2>&1; then
+kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
+  elif command -v icat >/dev/null 2>&1; then
       icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
-    else
-      kitty icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
-    fi
-  elif [ -n "$GHOSTTY_BIN_DIR" ]; then
-    if command -v kitten >/dev/null 2>&1; then
-      kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
-    elif command -v icat >/dev/null 2>&1; then
-      icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
-    else
+  else
+    if [ -n "$GHOSTTY_BIN_DIR" ]; then
       chafa -s "$dim" "$file"
+    else
+      kitty icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed '$d' | sed "$(printf '\$s/\$/\033[m/')"
     fi
-  elif command -v chafa >/dev/null 2>&1; then
+  fi
+elif command -v chafa >/dev/null 2>&1; then
     case "$PLATFORM" in
     android) chafa -s "$dim" "$file" ;;
     windows) chafa -f sixel -s "$dim" "$file" ;;
@@ -295,46 +296,6 @@ fzf_preview() {
   else
     echo "please install a terminal image viewer" >&2
     echo "either icat for kitty terminal and wezterm or imgcat or chafa" >&2
-  fi
-}
-
-update_script() {
-  lib_x_path="$(command -v lib-x)"
-  if [ -z "$lib_x_path" ]; then
-    send_notification "Can't find lib-x in PATH"
-    exit 1
-  fi
-  if [ ! -w "$lib_x_path" ]; then
-    if [ -n "$(command -v sudo)" ]; then
-      exec sudo -s "$lib_x_path" "-u"
-    else
-      send_notification "Insufficient permissions to update and can't find sudo in PATH"
-      exit 1
-    fi
-  fi
-
-  update=$(curl -s "https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x" || send_notification "Failed to fetch latest" && exit 0 1)
-  update="$(printf '%s\n' "$update" | diff -u "$lib_x_path" - 2>/dev/null)"
-  if [ -z "$update" ]; then
-    send_notification "Script is up to date :)"
-  else
-    if printf '%s\n' "$update" | patch "$lib_x_path" -; then
-      send_notification "Script has been updated!"
-    else
-      send_notification "Can't update for some reason!"
-    fi
-  fi
-  exec "$lib_x_path"
-}
-
-check_update() {
-  update=$(curl -s "https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x")
-  update="$(printf '%s\n' "$update" | diff -u "$(command -v lib-x)" - 2>/dev/null)"
-  if [ -zn "$update" ]; then
-    confirm "An update has been found would you like to see the changes before deciding whether to update" && echo "$update" | less
-    case "$answer" in
-    [Yy]*) update_script ;;
-    esac
   fi
 }
 
@@ -358,7 +319,6 @@ launcher() {
         --header-first --header="$CLI_HEADER"
         --exact --cycle --ansi
       )
-
       local fzf_opts_preview=(
         --preview-window=left,35%,wrap
         --bind=right:accept
@@ -366,7 +326,6 @@ launcher() {
         --tabstop=1
         --preview="$LIB_X_PREVIEW"
       )
-
       if [[ "$1" == 1 ]]; then
         fzf "${fzf_opts_base[@]}" "${fzf_opts_preview[@]}"
       else
@@ -379,7 +338,6 @@ launcher() {
       ;;
   esac
 }
-
 
 user_lists_manager() {
   declare -A list_dbs=(
@@ -408,7 +366,7 @@ user_lists_manager() {
         send_notification "Already in $list_name list"
       else
         send_notification "Adding to $list_name list..."
-        echo "$title" >>"$db_file"
+        echo "$title" >> "$db_file"
       fi
       ;;
     "remove")
@@ -460,7 +418,6 @@ ${RED}󰈆${RESET}  Exit\n" "$_categories" | launcher 0 | sed 's/^.  //g')
     if [[ $? -ne 0 || -z "$action" || "$action" == *Exit* ]]; then
   	    exit 0
     fi
-
    # ---- others ----
    case "$action" in
   "All"|"Random")
@@ -494,27 +451,23 @@ ${RED}󰈆${RESET}  Exit\n" "$_categories" | launcher 0 | sed 's/^.  //g')
   ;;
     # ---- others ----
     "Edit Config")
-      $PREFERRED_EDITOR "$CLI_CONFIG_FILE"
-      load_config
-      continue
+"$PREFERRED_EDITOR" "$CLI_CONFIG_FILE"
+load_config
+continue
       ;;
-    "Add Books From Folder")
-          if [[ "$FILE_EXPLORER" == "yazi" && $PREFERRED_SELECTOR == "fzf" ]]; then
-            yazi --cwd-file "$CLI_CACHE_DIR/books_path"
+   "Add Books"|"Add Books From Folder")
+          if [[ "$FILE_EXPLORER" == "yazi" ]]; then
+            [ "$PREFERRED_SELECTOR" == "fzf" ] && yazi --cwd-file "$CLI_CACHE_DIR/books_path"
+	    [ "$PREFERRED_SELECTOR" == "rofi" ] && launch_in_terminal yazi --cwd-file "$CLI_CACHE_DIR/books_path"
             books_path=$(cat "$CLI_CACHE_DIR/books_path")
-          elif [[ "$FILE_EXPLORER" == "fzf" && $PREFERRED_SELECTOR == "fzf" ]]; then
-            books_path=$(find $HOME -type d | fzf)
-	  elif [[ "$FILE_EXPLORER" == "yazi" && $PREFERRED_SELECTOR == "rofi" ]]; then
-            launch_in_terminal yazi --cwd-file "$CLI_CACHE_DIR/books_path"
-            books_path=$(cat "$CLI_CACHE_DIR/books_path")
-          elif [[ "$FILE_EXPLORER" == "fzf" && $PREFERRED_SELECTOR == "rofi" ]]; then
-	    launch_in_terminal bash -c 'find "$HOME" -type d | fzf' 
-            books_path=$(find $HOME -type d | fzf)
+          elif [[ "$FILE_EXPLORER" == "fzf" ]]; then
+	    [ "$PREFERRED_SELECTOR" == "fzf" ] && launch_in_terminal bash -c 'find "$HOME" -type d | fzf' 
+	    [ "$action" == "Add Books From Folder" ] && books_path=$(find "$HOME" -type d | fzf)
+            [ "$action" == "Add Books"] && books_path=$(find "$HOME" -type d | fzf --multi)
           else
             send_notification "Unsupported file explorer"
             continue
           fi
-
           if confirm "Would you like to input custom args (default: calibre_db add '$books_path')"; then
             clear
             calibredb add --help
@@ -525,36 +478,11 @@ ${RED}󰈆${RESET}  Exit\n" "$_categories" | launcher 0 | sed 's/^.  //g')
    "Reload Data")
           send_notification "Reloading calibre data" && FORCE_UPDATE_DB="true" reload_calibre_data
           ;;
-   "Add Books")
-          if [[ "$FILE_EXPLORER" == "yazi" && $PREFERRED_SELECTOR == "fzf" ]]; then
-            yazi --cwd-file "$CLI_CACHE_DIR/books_path"
-            books_path=$(cat "$CLI_CACHE_DIR/books_path")
-          elif [[ "$FILE_EXPLORER" == "fzf" && $PREFERRED_SELECTOR == "fzf" ]]; then
-            books_path=$(find $HOME -type d | fzf --multi)
-	  elif [[ "$FILE_EXPLORER" == "yazi" && $PREFERRED_SELECTOR == "rofi" ]]; then
-            launch_in_terminal yazi --cwd-file "$CLI_CACHE_DIR/books_path"
-            books_path=$(cat "$CLI_CACHE_DIR/books_path")
-          elif [[ "$FILE_EXPLORER" == "fzf" && $PREFERRED_SELECTOR == "rofi" ]]; then
-	    launch_in_terminal bash -c 'find "$HOME" -type d | fzf' 
-            books_path=$(find $HOME -type d | fzf --multi)
-          else
-            send_notification "Unsupported file explorer"
-            continue
-          fi
-
-          if confirm "Would you like to input custom args (default: calibre_db add '$books_path')"; then
-            clear
-            calibredb add --help
-            custom_args=$(prompt "Enter your custom args separated by spaces")
-          fi
-          confirm "Would you like to proceed in adding books?" && echo "$books_path" | xargs -I "%s" -- calibredb add "%s" $custom_args && send_notification "Success" || send_notification "Failed to add books"
-          ;;
   "Reading-List"|"Dropped"|"Paused"|"Completed"|"Re-reading"|"Planning"|"Docs"|"Recent")
     normalized_action="${action//[- ]/_}"
     normalized_action="${normalized_action^^}"
     var_name="DB_${normalized_action}_LIST"
     file="${!var_name}"
-
 if [ -s "$file" ]; then
   if [ "$action" = "Recent" ]; then
     titles="$(tac "$file")"
@@ -572,14 +500,13 @@ if [ -s "$file" ]; then
       ;;
     esac
     clear
-
     # book selection loop
     while true; do
       # ---- select book ----
 export SHELL="bash"
 export -f fzf_preview init_pretty_print
 launcher_flag=$([[ "$ENABLE_PREVIEW" == "true" ]] && echo 1 || echo 0)
-title=$(printf "%s\nBack\nExit" "$titles" | launcher "$launcher_flag" | tr -d '\n')
+title=$(printf "%s\nBack\nExit\n" "$titles" | launcher "$launcher_flag" | tr -d '\n')
 case "$title" in
   "Exit") exit 0 ;;
   "Back"|"") 
@@ -594,6 +521,7 @@ book=$(jq -r --arg title "$title" 'map(select(.title == $title)) | .[0]' < "$CAL
         action=$(
           printf "\
 ${CYAN}${RESET}  Read
+${CYAN}${RESET}  Open Folder
 ${CYAN}${RESET}  Add To List
 ${CYAN}${RESET}  Remove From List
 ${CYAN}${RESET}  Remove Book
@@ -604,15 +532,16 @@ ${RED}󰈆${RESET}  Exit\n" | launcher 0 | sed 's/^.  //g')
 		break
 	fi
         case "$action" in
-        "Read")
+        "Read"|"Open Folder")
           # update recent list
           if [ "$UPDATE_RECENT" = "true" ]; then
             updated_recent_file_contents=$(grep --invert-match -s "^$title\$" <"$DB_RECENT_LIST" | grep --extended-regexp "[[:alnum:]]+" | tail -n "$NO_OF_RECENT")
-            echo "$updated_recent_file_contents" >"$DB_RECENT_LIST"
-            echo "$title" >>"$DB_RECENT_LIST"
+            echo "$updated_recent_file_contents" > "$DB_RECENT_LIST"
+            echo "$title" >> "$DB_RECENT_LIST"
           fi
-          # open book
+          # open book or folder
           book_path="$(echo "$book" | jq -r '.formats[0]')"
+	  if [[ "$action" == "Read" ]]; then
           if command -v "open"; then
             open "$book_path" &>/dev/null &
           elif command -v "xdg-open"; then
@@ -620,12 +549,20 @@ ${RED}󰈆${RESET}  Exit\n" | launcher 0 | sed 's/^.  //g')
           else
             send_notification "No supported reader found"
           fi
+  else
+	dir_path="$(dirname "$book_path")"
+  	if [ -d "$dir_path" ]; then
+    "$FILE_EXPLORER" "$dir_path"
+  else
+    send_notification "Folder not found: $dir_path"
+  fi
+	  fi
           # disown
           [ "${PREFERRED_SELECTOR,,}" = "rofi" ] && wait
           [ "$DISOWN_READING_PROCESS" = "true" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && disown
           [ "$DISOWN_READING_PROCESS" = "false" ] && [ "${PREFERRED_SELECTOR,,}" = "fzf" ] && wait
           ;;
-       "Add To List" | "Remove From List")
+         "Add To List" | "Remove From List")
   list_action=$(echo "$action" | awk '{print tolower($1)}')  # "add" or "remove"
   list_target=$(printf "Reading\nPaused\nPlanning\nRe-reading\nDocs\nCompleted\nDropped\nRecent\n" | launcher 0)
   user_lists_manager "$list_target" "$list_action"
@@ -799,9 +736,6 @@ while [ $# -gt 0 ]; do
     [ -n "$2" ] || usage 1
     ROFI_THEME="$2"
     shift
-    ;;
-  -U | --update)
-    check_update "A new version of $CLI_NAME has been found would you like to upgrade(y/n)"
     ;;
   -E | --generate-desktop-entry)
     echo "
