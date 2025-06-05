@@ -1,3 +1,7 @@
+### Fixes 1.4
+-Added option "Open Book Folder"
+-Optimizations
+
 ### Fixes 1.3
 -A whole bunch more refactoring (thanks AI)
 
@@ -14,7 +18,6 @@
 -Some cleanup  
 
 ### Fixes 1.0  
-
 -Changed notifications from terminal notifications to notify-send for integration into dunst or other notification daemons. Removed NOTIFICATION_DURATION.  
 -Fixed the rofi menu cutting off the exit option making it difficult to exit the menu loop  
 -Added functionality for the rofi menu to pull up yazi or fzf with a terminal in a new option PREFERRED_TERMINAL when adding books. Default terminal is kitty. Not tested with other terminals.  
