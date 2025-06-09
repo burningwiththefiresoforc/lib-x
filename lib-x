@@ -28,7 +28,7 @@ CALIBRE_DB_JSON_FILE="$CLI_CACHE_DIR/calibre_db.json"
 CALIBRE_CATEGORIES_CSV_FILE="$CLI_CACHE_DIR/calibre_categories.csv"
 
 print_config() {
-  echo "\
+  cat <<EOF
 #
 #    ██╗░░░░░██╗██████╗░░░░░░░██╗░░██╗  ░█████╗░░█████╗░███╗░░██╗███████╗██╗░██████╗░
 #    ██║░░░░░██║██╔══██╗░░░░░░╚██╗██╔╝  ██╔══██╗██╔══██╗████╗░██║██╔════╝██║██╔════╝░
@@ -74,7 +74,7 @@ FILE_EXPLORER: $FILE_EXPLORER
 
 # preferred terminal when using rofi
 PREFERRED_TERMINAL: $PREFERRED_TERMINAL
-"
+EOF
 }
 
 load_config() {
@@ -103,7 +103,7 @@ load_config() {
     ["CALIBRE_LIBRARY_PATH"]="$HOME/Calibre Library"
     ["PRETTY_PRINT"]="true"
     ["FILE_EXPLORER"]="$(command -v yazi &>/dev/null && echo yazi || echo fzf)"
-    ["IMAGE_RENDERER"]="$([ -n \"$KITTY_WINDOW_ID\" ] && echo icat || echo chafa)"
+    ["IMAGE_RENDERER"]="$([[ -n "$KITTY_WINDOW_ID" ]] && echo icat || echo chafa)"
     ["DISOWN_READING_PROCESS"]="true"
     ["PREFERRED_EDITOR"]="${EDITOR:-open}"
     ["PREFERRED_SELECTOR"]="fzf"
@@ -132,62 +132,51 @@ load_config() {
     --marker=">" --pointer="◆" --separator="─" --scrollbar="│"
   '}
   export FZF_DEFAULT_OPTS IMAGE_RENDERER
-  print_config > "$CLI_CONFIG_FILE"
 }
 
-LIB_X_PREVIEW="
-if ! [ -z {} ] && ! [ {} = \"Exit\" ] && ! [ {} = \"Back\" ];then
-  CALIBRE_DB=\"\$(<\"$CALIBRE_DB_JSON_FILE\")\";
-  title=\"\$(echo {} | sed 's/\\\/\\\\\\\/g;')\";
-  book=\$(echo \"\$CALIBRE_DB\" |jq -r \"map(select(.title == \\\"\$title\\\")) | .[0]\")
-  book_title=\$(echo  \"\$book\"|jq -r '.title');
-  book_authors=\$(echo  \"\$book\"|jq -r '.authors');
-  book_tags=\$(echo  \"\$book\"|jq -r '.tags|join(\", \")');
-  book_cover=\$(echo  \"\$book\"|jq -r '.cover');
-  book_comments=\$(echo  \"\$book\"|jq -r '.comments');
-  book_langs=\$(echo  \"\$book\"|jq -r '.languages[]');
-  
-  init_pretty_print;
-  if [ -s \"\$book_cover\" ];then
-    fzf_preview  \"\$book_cover\";
-  fi
+LIB_X_PREVIEW=$(printf '%s\n' \
+'if [[ -n {} && {} != "Exit" && {} != "Back" ]]; then' \
+'  CALIBRE_DB=$(<'"$CALIBRE_DB_JSON_FILE"');' \
+'  esc_title=$(echo {} | sed "s/\\//\\\\\\//g");' \
+'  book=$(jq -r "map(select(.title == \"$esc_title\")) | .[0]" <<< "$CALIBRE_DB");' \
+'' \
+'  book_title=$(jq -r ".title" <<< "$book");' \
+'  book_authors=$(jq -r ".authors" <<< "$book");' \
+'  book_tags=$(jq -r ".tags | join(\", \")" <<< "$book");' \
+'  book_cover=$(jq -r ".cover" <<< "$book");' \
+'  book_comments=$(jq -r ".comments" <<< "$book");' \
+'  book_langs=$(jq -r ".languages | join(\", \")" <<< "$book");' \
+'' \
+'  init_pretty_print;' \
+'  [[ -s "$book_cover" ]] && fzf_preview "$book_cover";' \
+'' \
+'  for ((i = 0; i < FZF_PREVIEW_COLUMNS; i++)); do echo -n "─"; done; echo;' \
+'  printf "${MAGENTA}${BOLD_LIB_X}Title:${RESET} %s\n" "$book_title";' \
+'  printf "${MAGENTA}${BOLD_LIB_X}Authors:${RESET} %s\n" "$book_authors";' \
+'  printf "${MAGENTA}${BOLD_LIB_X}Tags:${RESET} %s\n" "$book_tags";' \
+'  printf "${MAGENTA}${BOLD_LIB_X}Languages:${RESET} %s\n" "$book_langs";' \
+'  for ((i = 0; i < FZF_PREVIEW_COLUMNS; i++)); do echo -n "─"; done; echo;' \
+'' \
+'  [[ "$book_comments" != "null" ]] && echo -e "$book_comments";' \
+'else' \
+'  echo Loading;' \
+'fi')  
 
-  ll=1
-  while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
-  printf \"\${MAGENTA}\${BOLD_LIB_X}Title:\${RESET} \$book_title\n\";
-  printf \"\${MAGENTA}\${BOLD_LIB_X}Authors:\${RESET} \$book_authors\n\";
-  printf \"\${MAGENTA}\${BOLD_LIB_X}Tags:\${RESET} \$book_tags\n\";
-  printf \"\${MAGENTA}\${BOLD_LIB_X}Languages:\${RESET} \$book_langs\n\";
+launch_in_terminal() { "$PREFERRED_TERMINAL" -e "$@"; }
+#add functionality for other terminals
 
-  ll=1
-  while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
- ! [ \"\$book_comments\" = "null" ] && echo -e \"\$book_comments\"
-  
-else\
-  echo Loading;\
-fi;\
-      "
-
-launch_in_terminal() {
-  "$PREFERRED_TERMINAL" -e "$@"
-}
+calibredb_clean() { calibredb "$@" | sed '/Initialized urlfixer/d;/^%$/d'; echo "]"; }
+#LOL 
 
 reload_calibre_data() {
-  calibredb_args=(list --for-machine --fields all)
-  [[ -n "$SEARCH" ]] && calibredb_args+=(--search "$SEARCH")
-  [[ -n "$SORT_BY" ]] && calibredb_args+=(--sort-by "$SORT_BY")
-  if [[ -n "$SEARCH" || -n "$SORT_BY" ]]; then
-    CALIBRE_DB="$(calibredb_clean "${calibredb_args[@]}")"
-  else
 	  library_timestamp=$(stat -c %Y "$CALIBRE_LIBRARY_PATH")
 if [[ ! -s "$CALIBRE_DB_JSON_FILE" || ! -s "$CALIBRE_CATEGORIES_CSV_FILE" || ! -s "$CLI_CACHE_DIR/last_db_timestamp" || "$(<"$CLI_CACHE_DIR/last_db_timestamp")" != "$library_timestamp" || "$FORCE_UPDATE_DB" == "true" ]];then
       calibredb_clean list --for-machine --fields all > "$CALIBRE_DB_JSON_FILE"
       calibredb_clean list_categories --csv | sed '/]$/d' > "$CALIBRE_CATEGORIES_CSV_FILE"
       echo "$library_timestamp" > "$CLI_CACHE_DIR/last_db_timestamp"
-    fi
       CALIBRE_DB="$(<"$CALIBRE_DB_JSON_FILE")"
-  fi
   CALIBRE_CATEGORIES="$(<"$CALIBRE_CATEGORIES_CSV_FILE")"
+fi
 }
 
 init_pretty_print() {
@@ -222,7 +211,7 @@ confirm() {
     [[ "$selection" == "Yes" ]]
   else
     echo "$CLI_HEADER" > /dev/stderr
-    printf "$1" > /dev/stderr
+    printf "%s: " "$1" >/dev/stderr
     read -r CONFIRMED
     case "$CONFIRMED" in
     [yY]) return 0 ;;
@@ -231,16 +220,6 @@ confirm() {
   fi
 }
 
-core_dep_ch() {
-  ! command -v "calibre" >/dev/null 2>&1 && echo "calibre is not installed and is a core dep please install it to proceed" >&2 && exit 1
-  ! command -v "jq" >/dev/null 2>&1 && echo "jq is not installed and is a core dep please install it to proceed" >&2 && exit 1
-  ! command -v "fzf" >/dev/null 2>&1 && echo "fzf is not installed and is a core dep please install it to proceed" >&2 && exit 1
-}
-
-calibredb_clean() {
-  calibredb "$@" | sed '/Initialized urlfixer/d;/^%$/d'; echo "]"
-  #LOL
-}
 
 fzf_preview() {
   file=$1
@@ -263,7 +242,7 @@ kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --pl
     if [[ -n "$GHOSTTY_BIN_DIR" ]]; then
       chafa -s "$dim" "$file"
     else
-      kitty icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed '$d' | sed "$(printf '\$s/\$/\033[m/')"
+      kitty icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed '$d' | sed "$(printf "\$s/\$/\033[m/")"
     fi
   fi
 elif command -v chafa >/dev/null 2>&1; then
@@ -307,10 +286,7 @@ launcher() {
       [[ "$1" == 1 ]] && fzf_opts_base+=("${fzf_opts_preview[@]}")
         fzf "${fzf_opts_base[@]}"
       ;;
-    *)
-      notify-send "Calibre" "Unsupported selector: $PREFERRED_SELECTOR"
-      return 1
-      ;;
+    *) notify-send "Calibre" "Unsupported selector: $PREFERRED_SELECTOR"; return 1 ;;
   esac
 }
 
@@ -330,10 +306,7 @@ user_lists_manager() {
   local action="$2"
   local db_file="${list_dbs[$list_name]}"
 
-  if [[ -z "$db_file" ]]; then
-    notify-send "Calibre" "Unknown list: $list_name"
-    return 1
-  fi
+[[ -z "$db_file" ]] && notify-send "Calibre" "Unknown list: $list_name" && return 1
 
   case "$action" in
     "add")
@@ -341,7 +314,7 @@ user_lists_manager() {
         notify-send "Calibre" "Already in $list_name list"
       else
         notify-send "Calibre" "Adding to $list_name list..."
-        echo "$title" >> "$db_file"
+        printf "%s\n" "$title" >> "$db_file"
       fi
       ;;
     "remove")
@@ -349,23 +322,19 @@ user_lists_manager() {
         if confirm "Are you sure you want to remove '$title' from $list_name List?"; then
           notify-send "Calibre" "Removing from $list_name list..."
           updated_list="$(grep -v "^$title\$" "$db_file")"
-          echo "$updated_list" | grep -E '[[:alnum:]]+' > "$db_file"
+          printf "%s\n" "$updated_list" | grep -E '[[:alnum:]]+' > "$db_file"
         fi
       else
         notify-send "Calibre" "'$title' is not in your $list_name list"
       fi
       ;;
-    *)
-      notify-send "Calibre" "Unknown action: $action"
-      return 1
-      ;;
+    *) notify-send "Calibre" "Unknown action: $action"; return 1 ;;
   esac
 }
 
 main() {
   init_pretty_print
   while true; do
-    local books_path
     # ---- main menu ----
     if [[ -z "$GO_DIRECTLY_TO" ]]; then
       _categories=$(cut -d , -f 1 <<< "$CALIBRE_CATEGORIES" | tail -n +2 | awk '!seen[$0]++ { printf "%s%s  %s\n", "'"$CYAN"'", "'"$RESET"'", toupper(substr($0,1,1)) substr($0,2) }')
@@ -395,55 +364,49 @@ else
    case "$action" in
   "All"|"Random")
 	  titles=$(jq -r '.[].title' <<< "$CALIBRE_DB")
-    if [[ "$action" == "Random" ]]; then
-	    titles=$(shuf -n "$NO_OF_RANDOM_BOOKS" <<< "$titles")
-    fi
+    [[ "$action" == "Random" ]] && titles=$(shuf -n "$NO_OF_RANDOM_BOOKS" <<< "$titles")
     ;;
     # ---- calibre search ----
    "Formats"|"Series"|"Languages"|"Tags"|"Rating"|"Publisher"|"Identifiers"|"Authors")
   value=$(awk -F, -v f="${action,,}" '$1 == f { print $2 }' <<< "$CALIBRE_CATEGORIES" | launcher 0 | tr -d '"' | sed 's/[][\/$*.^|]/ /g' | xargs)
-  if [[ -z "$value" ]]; then
-    titles=""
-    continue
-  fi
-  case "$field" in
-    authors) calibre_field="author" ;;
-    identifiers) calibre_field="identifier" ;;
-    languages) calibre_field="language" ;;
-    *) calibre_field="$field" ;;
-  esac
-  if [[ -n "$SORT_BY" ]]; then
-	  titles=$(jq -r '.[].title' < <(calibredb_clean list --search "$calibre_field:\"$value\"" --sort-by "$SORT_BY" --for-machine --fields=title))
-  else
-	  titles=$(jq -r '.[].title' < <(calibredb_clean list --search "$calibre_field:\"$value\"" --for-machine --fields=title))
-  fi
+  [[ -z "$value" ]] && titles="" && continue
+  calibre_field=${action,,}
+  [[ "$calibre_field" == "authors" || "$calibre_field" == "identifiers" || "$calibre_field" == "languages" ]] && calibre_field="${calibre_field::-1}"
+ cmd=(calibredb_clean list --search "$calibre_field:\"$value\"" --for-machine --fields=title)
+[[ -n "$SORT_BY" ]] && cmd+=(--sort-by "$SORT_BY")
+titles=$(jq -r '.[].title' < <("${cmd[@]}")) 
   ;;
     # ---- others ----
     "Edit Config")
-"$PREFERRED_EDITOR" "$CLI_CONFIG_FILE"
+[[ "$PREFERRED_SELECTOR" == "fzf" ]] && "$PREFERRED_EDITOR" "$CLI_CONFIG_FILE" || launch_in_terminal "$PREFERRED_EDITOR" "$CLI_CONFIG_FILE"
 load_config
+print_config > "$CLI_CONFIG_FILE"
 continue
       ;;
    "Add Books"|"Add Books From Folder")
+    local books_path
           if [[ "$FILE_EXPLORER" == "yazi" ]]; then
-            [[ "$PREFERRED_SELECTOR" == "fzf" ]] && yazi --cwd-file "$CLI_CACHE_DIR/books_path"
-	    [[ "$PREFERRED_SELECTOR" == "rofi" ]] && launch_in_terminal yazi --cwd-file "$CLI_CACHE_DIR/books_path"
+        [[ "$PREFERRED_SELECTOR" == "rofi" ]] && launch_in_terminal yazi --cwd-file "$CLI_CACHE_DIR/books_path" --chooser-file "$CLI_CACHE_DIR/books_path"
+        [[ "$PREFERRED_SELECTOR" == "fzf" ]] && yazi --cwd-file "$CLI_CACHE_DIR/books_path" --chooser-file "$CLI_CACHE_DIR/books_path"
             books_path=$(<"$CLI_CACHE_DIR/books_path")
           elif [[ "$FILE_EXPLORER" == "fzf" ]]; then
-	    [[ "$PREFERRED_SELECTOR" == "fzf" ]] && launch_in_terminal bash -c 'find "$HOME" -type d | fzf' 
+	    [[ "$PREFERRED_SELECTOR" == "rofi" ]] && launch_in_terminal bash -c "find \"$HOME\" -type d | fzf" 
 	    [[ "$action" == "Add Books From Folder" ]] && books_path=$(find "$HOME" -type d | fzf)
             [[ "$action" == "Add Books" ]] && books_path=$(find "$HOME" -type d | fzf --multi)
           else
-            notify-send "Calibre" "Unsupported file explorer"
-            continue
+            notify-send "Calibre" "Unsupported file explorer"; continue
           fi
             clear
             calibredb add --help
-            custom_args=$(prompt "Enter your custom args separated by spaces (default: calibre_db add '$books_path'): ")
-          confirm "Would you like to proceed in adding books? [y/n]: " && calibredb add "$books_path" $custom_args || notify-send "Calibre" "Failed to add books"
+            custom_args=$(prompt "Enter your custom args separated by spaces (default: calibre_db add '$books_path')")
+	    if confirm "Would you like to proceed in adding books? [y/n]"; then
+  calibredb add "$books_path" "$custom_args" || notify-send "Calibre" "Failed to add books"
+fi
+  continue
           ;;
    "Reload Data")
           notify-send "Calibre" "Reloading calibre data" && FORCE_UPDATE_DB="true" reload_calibre_data
+	  continue
           ;;
   "Reading-List"|"Dropped"|"Paused"|"Completed"|"Re-reading"|"Planning"|"Docs"|"Recent")
     normalized_action="${action//[- ]/_}"
@@ -451,20 +414,14 @@ continue
     var_name="DB_${normalized_action}_LIST"
     file="${!var_name}"
 if [[ -s "$file" ]]; then
-  if [[ "$action" == "Recent" ]]; then
-    titles="$(tac "$file")"
-  else
     titles="$(<"$file")"
-  fi
+    [[ "$action" == "Recent" ]] && titles="$(tac "$file")"
     else
 	    pretty_name="${action,,}"
-      notify-send "Calibre" "You don't have anything in your ${pretty_name} list" && continue
+      notify-send "Calibre" "You don't have anything in your ${pretty_name} list"; continue
     fi
     ;;
-    *)
-	notify-send "Calibre" 'invalid action'
-	continue 
-	;;
+    *) notify-send "Calibre" 'invalid action'; continue ;;
     esac
     clear
     # book selection loop
@@ -496,27 +453,27 @@ ${RED}󰈆${RESET}  Exit\n" | launcher 0 | sed 's/^.  //g')
         case "$action" in
         "Read"|"Open Folder")
           # update recent list
-          if [ "$UPDATE_RECENT" == "true" ]; then
+          if [[ "$UPDATE_RECENT" == "true" ]]; then
             updated_recent_file_contents=$(grep --invert-match -s "^$title\$" <"$DB_RECENT_LIST" | grep --extended-regexp "[[:alnum:]]+" | tail -n "$NO_OF_RECENT")
-            echo "$updated_recent_file_contents" > "$DB_RECENT_LIST"
-            echo "$title" >> "$DB_RECENT_LIST"
+            printf "%s\n" "$updated_recent_file_contents" > "$DB_RECENT_LIST"
+            printf "%s\n" "$title" >> "$DB_RECENT_LIST"
           fi
           # open book or folder
 	  book_path=$(jq -r '.formats[0]' <<< "$book")
 if [[ "$action" == "Read" ]]; then
   opener=$(command -v open || command -v xdg-open)
-  if [[ -n "$opener" ]]; then
-    "$opener" "$book_path" &>/dev/null &
-  else
-    notify-send "Calibre" "No supported reader found"
-  fi 
+   if [[ -n "$opener" ]]; then  
+	   "$opener" "$book_path" &>/dev/null & 
+else
+	notify-send "Calibre" "No supported reader found"
+fi
   else
 	dir_path="$(dirname "$book_path")"
-  	if [[ -d "$dir_path" ]]; then
-    "$FILE_EXPLORER" "$dir_path"
-  else
-    notify-send "Calibre" "Folder not found: $dir_path"
-  fi
+if [[ -d "$dir_path" ]]; then
+	"$FILE_EXPLORER" "$dir_path"
+else
+notify-send "Calibre" "Folder not found: $dir_path"
+fi
 	  fi
           # disown
           [[ "${PREFERRED_SELECTOR,,}" == "rofi"  ||  "$DISOWN_READING_PROCESS" == "false" ]] && wait
@@ -552,17 +509,11 @@ timestamp
 title
 title_sort
 Cancel\n" | launcher 0 )
-	if [[ -z "$metadata_field" || "$metadata_field" == "Cancel" || $? -ne 0 ]]; then
-	  notify-send "Calibre" "Metadata editing canceled."
-	  continue
-	fi
+	[[ -z "$metadata_field" || "$metadata_field" == "Cancel" || $? -ne 0 ]] && notify-send "Calibre" "Metadata editing canceled." && continue
 	book_id=$(jq -r '.id' <<< "$book")
 	calibredb show_metadata "$book_id"
 	metadata_val=$(prompt "Enter new value for $metadata_field")
-	if [[ -z "$metadata_val" ]]; then
-	  notify-send "Calibre" "No value entered. Not updated."
-	  continue
-	fi
+	[[ -z "$metadata_val" ]] && notify-send "Calibre" "No value entered. Not updated." && continue
 	calibredb set_metadata "$book_id" --field "$metadata_field:$metadata_val"
 	calibredb backup_metadata
 	reload_calibre_data
@@ -587,10 +538,6 @@ Commandline options override the config
 Some of the options are directly passed to calibredb
 
 Options:
-  -s, --search
-    search for a book based on calibredb search syntax
-  -S, --sort-by 
-    sort the books on a specified field
   -g, --go-directly-to
     open $CLI_NAME with a sub-menu pre-selected
   -e, --edit-config
@@ -632,6 +579,8 @@ Examples:
 }
 
 load_config
+[[ ! -s "$CLI_CONFIG_FILE" ]] && print_config > "$CLI_CONFIG_FILE"
+
 while [ $# -gt 0 ]; do
   case "$1" in
   -h | --help)
@@ -645,21 +594,9 @@ while [ $# -gt 0 ]; do
     $PREFERRED_EDITOR "$CLI_CONFIG_FILE" || exit 1
     exit 0
     ;;
-  -s | --search)
-    [ -n "$2" ] || usage 1
-    SEARCH="$2"
-    GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-All}"
-    shift
-    ;;
   -g | --go-directly-to)
     [ -n "$2" ] || usage 1
     GO_DIRECTLY_TO="$2"
-    shift
-    ;;
-  -S | --sort-by)
-    [ -n "$2" ] || usage 1
-    SORT_BY="$2"
-    GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-All}"
     shift
     ;;
   -r | --no-of-random-books)
@@ -805,5 +742,7 @@ Example:
 done
 
 reload_calibre_data
-core_dep_ch
+for dep in calibre jq fzf; do
+  type "$dep" &>/dev/null || { echo "$dep is required but not installed." >&2; exit 1; }
+done
 main
