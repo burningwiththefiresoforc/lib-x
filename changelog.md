@@ -1,8 +1,7 @@
 ### Fixes 1.6
 -Fixed Add Book and Add Books From Folder (which I broke)  
 -Minor bug fixes  
--Removed search and sort by command line utilities. These are already functions of calibredb and the script ran a check just to pipe them into calibredb.
--Random optimizations
+-Random optimizations  
 
 ### Fixes 1.5
 -Any dreams of POSIX compliance are long dead  
