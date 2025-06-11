@@ -169,17 +169,22 @@ calibredb_clean() { calibredb "$@" | sed '/Initialized urlfixer/d;/^%$/d'; echo 
 #LOL 
 
 reload_calibre_data() {
-	  library_timestamp=$(stat -c %Y "$CALIBRE_LIBRARY_PATH")
+  library_timestamp=$(stat -c %Y "$CALIBRE_LIBRARY_PATH")
 if [[ ! -s "$CALIBRE_DB_JSON_FILE" || ! -s "$CALIBRE_CATEGORIES_CSV_FILE" || ! -s "$CLI_CACHE_DIR/last_db_timestamp" || "$(<"$CLI_CACHE_DIR/last_db_timestamp")" != "$library_timestamp" || "$FORCE_UPDATE_DB" == "true" ]];then
       calibredb_clean list --for-machine --fields all > "$CALIBRE_DB_JSON_FILE"
       calibredb_clean list_categories --csv | sed '/]$/d' > "$CALIBRE_CATEGORIES_CSV_FILE"
       echo "$library_timestamp" > "$CLI_CACHE_DIR/last_db_timestamp"
       CALIBRE_DB="$(<"$CALIBRE_DB_JSON_FILE")"
+ elif [[ -n "$SEARCH" || -n "$SORT_BY" ]]; then
+  calibredb_args=(list --for-machine --fields all)
+  [[ -n "$SEARCH" ]] && calibredb_args+=(--search "$SEARCH")
+  [[ -n "$SORT_BY" ]] && calibredb_args+=(--sort-by "$SORT_BY")
+    CALIBRE_DB="$(calibredb_clean "${calibredb_args[@]}")"
+ fi
   CALIBRE_CATEGORIES="$(<"$CALIBRE_CATEGORIES_CSV_FILE")"
-fi
 }
 
-init_pretty_print() {
+ init_pretty_print() {
   if [[ "$PRETTY_PRINT" == "true" ]]; then
     RED=$(tput setaf 1)
     MAGENTA="\x1b[38;2;215;0;95m"
@@ -532,12 +537,16 @@ trap exit 0 INT TERM
 
 usage() {
   printf "\
-Usage: %s [arguments] [options] 
+Usage: %s [options] 
 
 Commandline options override the config
 Some of the options are directly passed to calibredb
 
 Options:
+  -s, --search
+    search for a book based on calibredb search syntax
+  -S, --sort-by 
+    sort the books on a specified field
   -g, --go-directly-to
     open $CLI_NAME with a sub-menu pre-selected
   -e, --edit-config
@@ -560,22 +569,8 @@ Options:
     Show this help message and exit
   -v, --version
     print the $CLI_NAME version and exit
-
-arguments:
-  completions
-    generates shell completions for $CLI_NAME
-
-Examples:
-  $CLI_NAME --search tag:chess --sort-by author
-  $CLI_NAME --search tag:chess 
-  $CLI_NAME --sort-by size 
-  $CLI_NAME --go-directly-to Reading-List --sort-by size
-  $CLI_NAME --go-directly-to Reading-List 
-  $CLI_NAME --no-of-random-books 50 --go-directly-to Random
-
-  $CLI_NAME completions --fish 
-" "$CLI_NAME"
   exit "$1"
+  "
 }
 
 load_config
@@ -583,53 +578,20 @@ load_config
 
 while [ $# -gt 0 ]; do
   case "$1" in
-  -h | --help)
-    usage 0
-    ;;
-  -v | --version)
-    echo "$CLI_NAME $CLI_VERSION Copyright © 2024 $CLI_AUTHOR projects"
-    exit 0
-    ;;
-  -e | --edit-config)
-    $PREFERRED_EDITOR "$CLI_CONFIG_FILE" || exit 1
-    exit 0
-    ;;
-  -g | --go-directly-to)
-    [ -n "$2" ] || usage 1
-    GO_DIRECTLY_TO="$2"
-    shift
-    ;;
-  -r | --no-of-random-books)
-    [ -n "$2" ] || usage 1
-    NO_OF_RANDOM_BOOKS="$2"
-    GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-Random}"
-    shift
-    ;;
-  -p | --preferred-selector)
-    [ -n "$2" ] || usage 1
-    PREFERRED_SELECTOR="$2"
-    shift
-    ;;
-  --private)
-    UPDATE_RECENT="false"
-    ;;
-  --preview)
-    ENABLE_PREVIEW="true"
-    ;;
-  --no-preview)
-    ENABLE_PREVIEW="false"
-    ;;
-  -d | --disown-reading-process)
-    DISOWN_READING_PROCESS="true"
-    ;;
-  -D | --no-disown-reading-process)
-    DISOWN_READING_PROCESS="false"
-    ;;
-  --rofi-theme)
-    [ -n "$2" ] || usage 1
-    ROFI_THEME="$2"
-    shift
-    ;;
+  -h | --help) usage 0 ;;
+  -v | --version) echo "$CLI_NAME $CLI_VERSION Copyright © 2024 $CLI_AUTHOR projects"; exit 0 ;;
+  -e | --edit-config) $PREFERRED_EDITOR "$CLI_CONFIG_FILE" || exit 1; exit 0 ;;
+  -g | --go-directly-to) [ -n "$2" ] || usage 1; GO_DIRECTLY_TO="$2"; shift ;;
+  -p | --preferred-selector) [ -n "$2" ] || usage 1; PREFERRED_SELECTOR="$2"; shift ;;
+  --private) UPDATE_RECENT="false" ;;
+  -d | --disown-reading-process) DISOWN_READING_PROCESS="true" ;;
+  -D | --no-disown-reading-process) DISOWN_READING_PROCESS="false" ;;
+  --preview) ENABLE_PREVIEW="true" ;;
+  --no-preview) ENABLE_PREVIEW="false" ;;
+  --rofi-theme) [ -n "$2" ] || usage 1; ROFI_THEME="$2"; shift ;;
+  -r | --no-of-random-books) [[ -n "$2" ]] || usage 1; NO_OF_RANDOM_BOOKS="$2"; GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-Random}"; shift ;;
+  -S | --sort-by) [ -n "$2" ] || usage 1; SORT_BY="$2"; GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-All}"; shift ;;
+  -s | --search) [ -n "$2" ] || usage 1; SEARCH="$2"; GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-All}"; shift ;;
   -E | --generate-desktop-entry)
     echo "
 [Desktop Entry]
@@ -645,98 +607,7 @@ Categories=Education
     "
     exit 0
     ;;
-  completions)
-    [ -n "$2" ] || usage 1
-    case "$2" in
-    -f | --fish)
-      echo "\
-# --- functions ---
-function _lib_x_complete_search
-  for comp_line in (calibredb_clean list_categories --csv) 
-    echo (echo \$comp_line|cut --delimiter , --fields 1):(echo \$comp_line|cut --delimiter , --fields 2|tr -d '\"')
-  end
-end
-
-# --- completions ---
-complete -c $CLI_NAME --no-files --arguments \"completions\" --condition 'not __fish_contains_opt search s sort-by S e edit-config p preferred-selector d disown-reading-process D no-disown-reading-process E generate-desktop-entry rofi-theme'
-
-complete -c $CLI_NAME --no-files --short-option h --long-option help --description 'Print a short help text and exit'
-complete -c $CLI_NAME --no-files --short-option v --long-option version --description 'Print a short version string and exit' --condition 'not __fish_seen_subcommand_from completions'
-
-complete -c $CLI_NAME --no-files --short-option U --long-option update --description 'Update lib-x' --condition 'not __fish_seen_subcommand_from completions'
-complete -c $CLI_NAME --no-files --short-option e --long-option edit-config --description 'Edit $CLI_NAME config file' --condition 'not __fish_seen_subcommand_from completions'
-complete -c $CLI_NAME --no-files --short-option p --long-option preferred-selector --description 'your preferred selector' --condition 'not __fish_seen_subcommand_from completions' --exclusive --arguments 'fzf rofi'
-complete -c $CLI_NAME --no-files --short-option d --long-option disown-reading-process --description 'disown the reading process' --condition 'not __fish_seen_subcommand_from completions'
-complete -c $CLI_NAME --no-files --short-option D --long-option no-disown-reading-process --description 'dont disown the reading process' --condition 'not __fish_seen_subcommand_from completions'
-complete -c $CLI_NAME --no-files --short-option E --long-option generate-desktop-entry --description 'generate desktop entry info' --condition 'not __fish_seen_subcommand_from completions' 
-complete -c $CLI_NAME --no-files --short-option r --long-option no-of-random-books --description 'the number of random books to show' --condition 'not __fish_seen_subcommand_from completions' --exclusive --arguments \"(seq 100)\" 
-complete -c $CLI_NAME --no-files --short-option P --long-option private --description 'dont update recent' --condition 'not __fish_seen_subcommand_from completions'
-
-complete -c $CLI_NAME --no-files --long-option preview --description 'enable preview window' --condition 'not __fish_seen_subcommand_from completions' 
-complete -c $CLI_NAME --no-files --long-option no-preview --description 'disable preview window' --condition 'not __fish_seen_subcommand_from completions' 
-
-complete -c $CLI_NAME --force-files --long-option rofi-theme --description 'the path to your rofi config file' --condition 'not __fish_seen_subcommand_from completions' 
-
-complete -c $CLI_NAME --no-files --short-option S --long-option sort-by --description 'Sort the books by a field' --condition 'not __fish_seen_subcommand_from completions' --exclusive --arguments 'author_sort authors comments cover formats identifiers isbn languages last_modified pubdate publisher rating series series_index size tags template timestamp title uuid'
-complete -c $CLI_NAME --no-files --short-option g --long-option go-directly-to --description 'Open $CLI_NAME with a sub-menu pre-selected' --condition 'not __fish_seen_subcommand_from completions' --exclusive --arguments 'All Reading-List Paused Planing Re-reading Completed Docs Random authors formats identifiers languages  publisher rating series tags Recent'
-complete -c $CLI_NAME --no-files --short-option s --long-option search --description 'search for a book' --condition 'not __fish_seen_subcommand_from completions' --exclusive --arguments \"(_lib_x_complete_search)\"
-
-complete -c $CLI_NAME --no-files --short-option z --long-option zsh --description 'print zsh completions' --condition '__fish_seen_subcommand_from completions'
-complete -c $CLI_NAME --no-files --short-option b --long-option bash --description 'print bash completions' --condition '__fish_seen_subcommand_from completions'
-complete -c $CLI_NAME --no-files --short-option f --long-option fish --description 'print fish completions' --condition '__fish_seen_subcommand_from completions'
-    "
-      ;;
-    -b | --bash)
-      # TODO: write bash completions
-      command ...
-      ;;
-    -z | --zsh)
-      # TODO: write zsh completions
-      command ...
-      ;;
-    -h | --help)
-      echo "\
-Generate shell completions for $CLI_NAME
-
-Options:
-  --fish
-    print fish completions and exit
-  --bash
-    print bash completions and exit
-  --zsh
-    print zsh completions and exit
-
-Example:
-  $CLI_NAME completions --fish
-  $CLI_NAME completions --bash
-  $CLI_NAME completions --zsh
-    "
-      ;;
-    *)
-      echo "\
-Generate shell completions for $CLI_NAME
-
-Options:
-  --fish
-    print fish completions and exit
-  --bash
-    print bash completions and exit
-  --zsh
-    print zsh completions and exit
-
-Example:
-  $CLI_NAME completions --fish
-  $CLI_NAME completions --bash
-  $CLI_NAME completions --zsh
-    "
-      exit 1
-      ;;
-    esac
-    exit 0
-    ;;
-  *)
-    usage 1
-    ;;
+  *) usage 1 ;;
   esac
   shift
 done
