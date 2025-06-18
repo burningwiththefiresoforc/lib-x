@@ -1,3 +1,11 @@
+### Fixes 1.7
+-Heavily optimized preview image and metadata loading for fzf. Instead of everything being on demand it creates a TSV cache of the metadata, much less I/O and overhead, just slightly more loadtime on startup or reload. Also loads the lists faster. This also deprecated the need for a persistent JSON cache. Should work a little bit better with bigger libraries (tested on a library of about 600 books with lots of weird metadata).  
+-Trying to work out a method to do the same for the calibredb categories lists like Authors, Formats, etc. which load very slowly but it's a bit more dynamic and harder to cache without making like eight separate caches or one massive one.  
+-Other miscellaneous refactors
+-Broke some command line functionality. Might get around to fixing it, who knows.  
+-Note to self need to sanitize the book comments of stray HTML tags  
+-Code is basically impossible to read now and I have no idea what it does 🎉  
+
 ### Fixes 1.6
 -Fixed Add Book and Add Books From Folder (which I broke)  
 -Minor bug fixes  
