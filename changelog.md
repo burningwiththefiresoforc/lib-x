@@ -1,3 +1,11 @@
+### Fixes 1.8
+-Languages are now loaded in the menu as their ISO codes. A slight compromise but the menu is much, much faster now.  
+-Categories are now populated entirely by the master TSV, save for one call at startup that defines the categories that are actually present. The CSV cache is now deprecated. Parsing is much faster, you would need a pretty large library to slow this down significantly.  
+-Cleaned up some remnants of old features. There are now only two cached files, the books_path for adding books, and the master TSV. Database is refreshed either manually or at startup.
+-Removed some user managed lists that seemed a bit redundant.
+-More refactoring and merged a couple functions, offloaded some more stuff onto startup rather than repeated calls.
+-Fixed some more minor breakages that I caused.
+
 ### Fixes 1.7.1
 -Expanded the TSV solution to allow for quick lookups for categories. It is much faster and less resource intensive. The exception to this is the Languages category, which is currently broken due to calibredb list_categories outputting the full language name while calibredb list outputs the ISO-639-2/T language codes, which are difficult to parse from the names any single language has for any other language (French -> fra, German -> deu, etc.). There is also some trouble parsing complex language names ("Greek, Ancient (to 1453)" causes some trouble). I have to think on it for a bit, this one might just have to use the slower calibredb/jq solution previously implemented or, best of all, a solution that cuts out the need for the calibre_categories.csv entirely, which exists only to construct the category menus.  
 -The use of the TSV will also allow in the future for me to easily include its relevant category metadata along with the title which will make it searchable.  
