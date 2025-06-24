@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #A script written by Benexl in September 4, 2024 under GNU GENERAL PUBLIC LICENSE
-#vibe coded contributions by burningwiththefiresoforc
+#refactoring and additions (vibe coded) by burningwiththefiresoforc
 
 CLI_HEADER='
 ██╗░░░░░██╗██████╗░░░░░░░██╗░░██╗
@@ -24,13 +24,10 @@ CLI_CACHE_DIR="$HOME/.cache/$CLI_NAME"
 [[ -d "$CLI_CACHE_DIR" ]] || mkdir -p "$CLI_CACHE_DIR"
 [[ -d "$CLI_DBS_DIR" ]] || mkdir -p "$CLI_DBS_DIR"
 
-CALIBRE_CATEGORIES_CSV_FILE="$CLI_CACHE_DIR/calibre_categories.csv"
 CACHE_FILE="$CLI_CACHE_DIR/calibre_cache.tsv"
 
 print_config() {
   cat <<EOF
-$CLI_HEADER
-
 # whether to show colors when printing ouput
 PRETTY_PRINT: $PRETTY_PRINT
 
@@ -76,8 +73,7 @@ load_config() {
 
   declare -A list_names=(
     ["READING"]="reading_list"
-    ["PAUSED"]="paused_list"
-    ["PLANING"]="planing_list"
+    ["PLANNING"]="planning_list"
     ["COMPLETED"]="completed_list"
     ["DOCS"]="docs_list"
     ["RECENT"]="recent"
@@ -131,7 +127,6 @@ LIB_X_PREVIEW=$(printf '%s\n' \
 '  IFS=$'\''\t'\'' read -r book_id book_title book_authors book_tags book_cover book_comments book_langs book_path < <(' \
 '    awk -F"\t" -v title="$esc_title" '\''$2 == title {print; exit}'\'' '"$CACHE_FILE"' );' \
 '' \
-'  init_pretty_print;' \
 '  [[ -s "$book_cover" ]] && fzf_preview "$book_cover";' \
 '' \
 '  for ((i = 0; i < FZF_PREVIEW_COLUMNS; i++)); do echo -n "─"; done; echo;' \
@@ -149,42 +144,7 @@ LIB_X_PREVIEW=$(printf '%s\n' \
 launch_in_terminal() { "$PREFERRED_TERMINAL" -e "$@"; }
 #add functionality for other terminals
 
-calibredb_clean() { calibredb "$@" | sed '/Initialized urlfixer/d;/^%$/d'; echo "]"; }
-#LOL 
-
 reload_calibre_data() {
-  library_timestamp=$(stat -c %Y "$CALIBRE_LIBRARY_PATH")
-  if [[ ! -s "$CALIBRE_CATEGORIES_CSV_FILE" || ! -s "$CLI_CACHE_DIR/last_db_timestamp" || "$(<"$CLI_CACHE_DIR/last_db_timestamp")" != "$library_timestamp" || "$FORCE_UPDATE_DB" == "true" ]]; then
-    calibredb_clean list_categories --csv | sed '/]$/d' > "$CALIBRE_CATEGORIES_CSV_FILE"
-    echo "$library_timestamp" > "$CLI_CACHE_DIR/last_db_timestamp"
-     calibredb_clean list --for-machine --fields all | jq -r '
-      .[] |
-      [
-        (.id // "-" | tostring | if . == "" then "-" else . end),
-        (.title // "-" | gsub("[\t\n\r]"; " ") | if . == "" then "-" else . end),
-        (.authors // "-" | gsub("[\t\n\r]"; " ") | if . == "" then "-" else . end),
-        (if (.tags and (.tags | length) > 0) then (.tags | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
-        (if (.cover and (.cover | tostring) != "") then (.cover | gsub("[\t\n\r]"; " ")) else "-" end),
-	(if (.comments and (.comments | tostring) != "") then (.comments | gsub("<[^>]+>"; "") | gsub("[\t\n\r]"; " ") | if . == "null" or . == "" then "-" else . end) else "-" end),
-        (if (.languages and (.languages | length) > 0) then (.languages | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
-	(if (.formats and (.formats | length) > 0) then (.formats | map(split(".")[-1] | ascii_upcase) | join("; ")) else "-" end),
-        (if (.series and (.series | length) > 0) then (.series | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
-        (if (.rating and (.rating | tostring) != "") then (.rating | tostring) else "-" end),
-        (.publisher // "-" | gsub("[\t\n\r]"; " ") | if . == "" then "-" else . end),
-        (if (.identifiers and (.identifiers | length) > 0) then (.identifiers | to_entries | map("\(.key):\(.value)") | join("; ")) else "-" end),
-	(.formats[0] | gsub("[\t\n\r]"; " "))
-      ] | @tsv
-    ' > "$CACHE_FILE"
-  elif [[ -n "$SEARCH" || -n "$SORT_BY" ]]; then
-    calibredb_args=(list --for-machine --fields all)
-    [[ -n "$SEARCH" ]] && calibredb_args+=(--search "$SEARCH")
-    [[ -n "$SORT_BY" ]] && calibredb_args+=(--sort-by "$SORT_BY")
-    CALIBRE_DB="$(calibredb_clean "${calibredb_args[@]}")"
-  fi
-  CALIBRE_CATEGORIES="$(<"$CALIBRE_CATEGORIES_CSV_FILE")"
-}
-
- init_pretty_print() {
   if [[ "$PRETTY_PRINT" == "true" ]]; then
     RED=$(tput setaf 1)
     MAGENTA="\x1b[38;2;215;0;95m"
@@ -193,35 +153,69 @@ reload_calibre_data() {
     RESET=$(tput sgr0)
     export RED MAGENTA BOLD_LIB_X RESET CYAN
   fi
-}
-
-prompt() {
-  if [[ "$PREFERRED_SELECTOR" == "rofi" ]]; then
-    rofi -dmenu -p "$1: "
-  elif command -v "gum" >/dev/null 2>&1; then
-    gum input --header "$CLI_HEADER" --prompt "$1: " --value "$2"
-  else
-    echo "$CLI_HEADER" >/dev/stderr
-    printf "%s: " "$1" >/dev/stderr
-    read -r VAL
-    echo "$VAL"
+  if [[ ! -s "$CALIBRE_CACHE" || "$FORCE_UPDATE_DB" == "true" ]]; then
+	      (calibredb list --for-machine --fields all | sed '/Initialized urlfixer/d;/^%$/d'; echo "]") | jq -r '
+  .[] |
+  [
+    (.id // "-" | tostring | if . == "" then "-" else . end),
+    (.title // "-" | gsub("[\t\n\r]"; " ") | if . == "" then "-" else . end),
+    (.authors // "-" | gsub("[\t\n\r]"; " ") | gsub(" +& +| +and +"; "; ") | if . == "" then "-" else . end),
+    (if (.tags and (.tags | length) > 0) then (.tags | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
+    (if (.cover and (.cover | tostring) != "") then (.cover | gsub("[\t\n\r]"; " ")) else "-" end),
+    (if (.comments and (.comments | tostring) != "") then (.comments | gsub("<[^>]+>"; "") | gsub("[\t\n\r]"; " ") | if . == "null" or . == "" then "-" else . end) else "-" end),
+    (if (.languages and (.languages | length) > 0) then (.languages | map(ascii_upcase) | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
+    (if (.formats and (.formats | length) > 0) then (.formats | map(split(".")[-1] | ascii_upcase) | join("; ")) else "-" end),
+    (if (.series and (.series | length) > 0) then (.series | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
+    (if (.rating and (.rating | tostring) != "") then (.rating | tostring) else "-" end),
+    (.publisher // "-" | gsub("[\t\n\r]"; " ") | if . == "" then "-" else . end),
+    (if (.identifiers and (.identifiers | length) > 0) then (.identifiers | to_entries | map("\(.key):\(.value)") | join("; ")) else "-" end),
+    (.formats[0] | gsub("[\t\n\r]"; " "))
+  ] | @tsv
+' > "$CACHE_FILE" 
+_categories="$(calibredb list_categories --csv | sed '/Initialized urlfixer/d;/^%$/d' |
+  awk -F, -v c="$CYAN" -v r="$RESET" '
+    NR > 1 && !seen[$1]++ {
+      $1 = toupper(substr($1,1,1)) substr($1,2)
+      printf("%s%s  %s\n", c, r, $1)
+    }'
+)"
+  elif [[ -n "$SEARCH" || -n "$SORT_BY" ]]; then
+    calibredb_args=(list --for-machine --fields all)
+    [[ -n "$SEARCH" ]] && calibredb_args+=(--search "$SEARCH")
+    [[ -n "$SORT_BY" ]] && calibredb_args+=(--sort-by "$SORT_BY")
+    CALIBRE_DB="$(calibredb_clean "${calibredb_args[@]}")"
   fi
 }
 
-confirm() {
-  if [[ $PREFERRED_SELECTOR == "rofi" ]]; then
-    selection=$(printf "No\nYes" | rofi -dmenu -i -p "$1")
-    [[ "$selection" == "Yes" ]]
-  elif type "gum" >/dev/null 2>&1; then
-    gum confirm "$1"
+prompt() {
+  local label="$1"
+  local default="$2"
+  local mode="${3:-0}"
+
+  if [[ "$PREFERRED_SELECTOR" == "rofi" ]]; then
+    if [[ "$mode" == "1" ]]; then
+      selection=$(printf "No\nYes" | rofi -dmenu -i -p "$label")
+      [[ "$selection" == "Yes" ]]
+    else
+      rofi -dmenu -p "$label: "
+    fi
+  elif command -v gum >/dev/null 2>&1; then
+    if [[ "$mode" == "1" ]]; then
+      gum confirm "$label"
+    else
+      gum input --header "$CLI_HEADER" --prompt "$label: " --value "$default"
+    fi
   else
-    echo "$CLI_HEADER" > /dev/stderr
-    printf "%s: " "$1" > /dev/stderr
-    read -r CONFIRMED
-    case "$CONFIRMED" in
-    [yY]) return 0 ;;
-    *) return 1 ;;
-    esac
+    echo "$CLI_HEADER" >&2
+    if [[ "$mode" == "1" ]]; then
+      printf "%s [y/N]: " "$label" >&2
+      read -r response
+      [[ "$response" =~ ^[yY]$ ]]
+    else
+      printf "%s: " "$label" >&2
+      read -r response
+      echo "$response"
+    fi
   fi
 }
 
@@ -294,32 +288,32 @@ launcher() {
   esac
 }
 
+#might add functionality to add your own user-defined lists
 user_lists_manager() {
   declare -A list_dbs=(
     ["Reading"]="$DB_READING_LIST"
-    ["Paused"]="$DB_PAUSED_LIST"
     ["Recent"]="$DB_RECENT_LIST"
     ["Completed"]="$DB_COMPLETED_LIST"
     ["Docs"]="$DB_DOCS_LIST"
-    ["Planning"]="$DB_PLANING_LIST"
+    ["Planning"]="$DB_PLANNING_LIST"
   )
   local list_name="$1"
   local action="$2"
   local db_file="${list_dbs[$list_name]}"
 [[ -z "$db_file" ]] && notify-send "Calibre" "Unknown list: $list_name" && return 1
   case "$action" in
-    "add")
+    "Add To List")
       if grep -qs "^${title}\$" "$db_file"; then
-        notify-send "Calibre" "Already in $list_name list"
+        notify-send "Calibre" "Already in $list_name list."
       else
-        notify-send "Calibre" "Adding to $list_name list..."
+        notify-send "Calibre" "Added to $list_name list."
         printf "%s\n" "$title" >> "$db_file"
       fi
       ;;
-    "remove")
+    "Remove From List")
       if grep -q "^$title\$" "$db_file"; then
-        if confirm "Are you sure you want to remove '$title' from $list_name List?"; then
-          notify-send "Calibre" "Removing from $list_name list..."
+        if prompt "Are you sure you want to remove '$title' from $list_name List?" "" 1; then
+          notify-send "Calibre" "Removed from $list_name list."
           updated_list="$(grep -v "^$title\$" "$db_file")"
           printf "%s\n" "$updated_list" | grep -E '[[:alnum:]]+' > "$db_file"
         fi
@@ -332,16 +326,13 @@ user_lists_manager() {
 }
 
 main() {
-  init_pretty_print
   while true; do
     # ---- main menu ----
     if [[ -z "$GO_DIRECTLY_TO" ]]; then
-	    _categories="$(awk -F, -v c="$CYAN" -v r="$RESET" 'NR>1 && !seen[$1]++ { $1 = toupper(substr($1,1,1)) substr($1,2); printf("%s%s  %s\n", c, r, $1) }' <<< "$CALIBRE_CATEGORIES")"
-action=$( launcher 0 <<< $"${CYAN}${RESET}  All
+action=$( launcher 0 <<< "${CYAN}${RESET}  All
 ${_categories}
 ${CYAN}${RESET}  Recent
-${CYAN}${RESET}  Reading-List
-${CYAN}${RESET}  Paused
+${CYAN}${RESET}  Reading
 ${CYAN}${RESET}  Planning
 ${CYAN}${RESET}  Completed
 ${CYAN}${RESET}  Docs
@@ -364,50 +355,66 @@ else
     [[ "$action" == "Random" ]] && titles=$(shuf -n "$NO_OF_RANDOM_BOOKS" <<< "$titles")
     ;;
     # ---- calibre search ----
-   "Formats"|"Series"|"Languages"|"Tags"|"Rating"|"Publisher"|"Identifiers"|"Authors")
-   value=$(awk -F, -v f="${action,,}" '$1 == f { print $2 }' <<< "$CALIBRE_CATEGORIES" | launcher 0 | tr -d '"')
-  [[ -z "$value" ]] && titles="" && continue
+"Formats"|"Series"|"Languages"|"Tags"|"Rating"|"Publisher"|"Identifiers"|"Authors")
+ case "$action" in
+  "Authors")     col=3 ;;
+  "Tags")        col=4 ;;
+  "Languages")   col=7 ;;
+  "Formats")     col=8 ;;
+  "Series")      col=9 ;;
+  "Rating")      col=10 ;;
+  "Publisher")   col=11 ;;
+  "Identifiers") col=12 ;;
+  *)             notify-send "Calibre" "Unknown field: $action"; continue ;;
+esac
 
-calibre_field=${action,,}
-
-declare -A field_column=(
-  [authors]=3
-  [tags]=4
-  [languages]=7
-  [formats]=8
-  [series]=9
-  [rating]=10
-  [publisher]=11
-  [identifiers]=12
-)
-
-col=${field_column[$calibre_field]}
-[[ "$calibre_field" == "authors" || "$calibre_field" == "languages" ]] && calibre_field="${calibre_field::-1}"
-if [[ -z "$col" ]]; then
-	notify-send "Calibre" "Unknown field: $calibre_field"
-	continue
-fi
-
-titles=$(awk -v val="$value" -v col="$col" -v field="$calibre_field" -F'\t' '
-{
-  split($col, parts, /;[ ]*/)
-  for (i in parts) {
-    if (field == "identifiers") {
-      split(parts[i], kv, ":")
-      if (kv[1] == val) {
-        print $2
-        break
-      }
-    } else {
-      if (parts[i] == val) {
-        print $2
-        break
+value=$(awk -F'\t' -v col="$col" -v field="$action" '
+  {
+    split($col, parts, /;[ ]*/)
+    for (i in parts) {
+      v = parts[i]
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+      if (v != "-" && v != "") {
+        if (field == "Identifiers") {
+          split(v, kv, ":")
+          if (kv[1] != "") {
+            seen[kv[1]] = 1
+          }
+        } else {
+          seen[v] = 1
+        }
       }
     }
   }
-}
+  END {
+    for (v in seen) {
+      print v
+    }
+  }
+' "$CACHE_FILE" | sort | launcher 0 | tr -d '"')
+
+[[ -z "$value" ]] && titles="" && continue
+
+titles=$(awk -v val="$value" -v col="$col" -v field="$action" -F'\t' '
+  {
+    split($col, parts, /;[ ]*/)
+    for (i in parts) {
+      if (field == "Identifiers") {
+        split(parts[i], kv, ":")
+        if (kv[1] == val) {
+          print $2
+          break
+        }
+      } else {
+        if (parts[i] == val) {
+          print $2
+          break
+        }
+      }
+    }
+  }
 ' "$CACHE_FILE")
-;;
+  ;;
     # ---- others ----
     "Edit Config")
 [[ "$PREFERRED_SELECTOR" == "fzf" ]] && "$PREFERRED_EDITOR" "$CLI_CONFIG_FILE" || launch_in_terminal "$PREFERRED_EDITOR" "$CLI_CONFIG_FILE"
@@ -430,17 +437,18 @@ continue
           fi
             clear
             calibredb add --help
-            custom_args=$(prompt "Enter your custom args separated by spaces (default: calibre_db add '$books_path')")
-	    if confirm "Would you like to proceed in adding books? [y/n]"; then
+            custom_args=$(prompt "Enter your custom args separated by spaces (default: calibre_db add '$books_path')" "")
+	    if prompt "Would you like to proceed in adding books? [y/n]" "" 1; then
   calibredb add "$books_path" "$custom_args" || notify-send "Calibre" "Failed to add books"
 fi
+clear
   continue
           ;;
    "Reload Data")
           notify-send "Calibre" "Reloading calibre data" && FORCE_UPDATE_DB="true" reload_calibre_data
 	  continue
           ;;
-  "Reading-List"|"Paused"|"Completed"|"Planning"|"Docs"|"Recent")
+  "Reading"|"Paused"|"Completed"|"Planning"|"Docs"|"Recent")
     normalized_action="${action//[- ]/_}"
     normalized_action="${normalized_action^^}"
     var_name="DB_${normalized_action}_LIST"
@@ -455,12 +463,12 @@ if [[ -s "$file" ]]; then
     ;;
     *) notify-send "Calibre" 'invalid action'; continue ;;
     esac
-    # clear
+    clear
     # book selection loop
     while true; do
       # ---- select book ----
 export SHELL="bash"
-export -f fzf_preview init_pretty_print
+export -f fzf_preview
 launcher_flag=$([[ "$ENABLE_PREVIEW" == "true" ]] && echo 1 || echo 0)
 title=$(launcher "$launcher_flag" <<< "$(printf '%s\nBack\nExit\n' "$titles")" | tr -d '\n')
 case "$title" in
@@ -506,13 +514,12 @@ fi
           [[ "$DISOWN_READING_PROCESS" == "true"  &&  "${PREFERRED_SELECTOR,,}" == "fzf" ]] && disown
           ;;
          "Add To List" | "Remove From List")
-		 list_action="${action,,}"
-  list_target=$(printf "Reading\nPaused\nPlanning\nRe-reading\nDocs\nCompleted\nDropped\nRecent\n" | launcher 0)
-  user_lists_manager "$list_target" "$list_action"
+		 list_target=$(launcher 0 <<< $'Reading\nPlanning\nDocs\nCompleted\nRecent')
+  user_lists_manager "$list_target" "$action"
   ;; 
         "Remove Book")
 		book_id="$(awk -F'\t' -v title="$book" '$2 == title {print $1; exit}' "$CACHE_FILE")"
-          confirm "Are you sure you want to remove $title" 
+          prompt "Are you sure you want to remove $title?" "" 1 
 	  calibredb remove "$book_id" && notify-send "Calibre" "Successfully removed"
           ;;
   "Edit Metadata")
@@ -538,7 +545,7 @@ Cancel" )
 	[[ -z "$metadata_field" || "$metadata_field" == "Cancel" || $? -ne 0 ]] && notify-send "Calibre" "Metadata editing canceled." && continue
 	book_id="$(awk -F'\t' -v title="$book" '$2 == title {print $1; exit}' "$CACHE_FILE")"
 	calibredb show_metadata "$book_id"
-	metadata_val=$(prompt "Enter new value for $metadata_field")
+	metadata_val=$(prompt "Enter new value for $metadata_field" "")
 	[[ -z "$metadata_val" ]] && notify-send "Calibre" "No value entered. Not updated." && continue
 	calibredb set_metadata "$book_id" --field "$metadata_field:$metadata_val"
 	calibredb backup_metadata
