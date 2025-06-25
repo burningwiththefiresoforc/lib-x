@@ -153,7 +153,6 @@ reload_calibre_data() {
     RESET=$(tput sgr0)
     export RED MAGENTA BOLD_LIB_X RESET CYAN
   fi
-  if [[ ! -s "$CALIBRE_CACHE" || "$FORCE_UPDATE_DB" == "true" ]]; then
 	      (calibredb list --for-machine --fields all | sed '/Initialized urlfixer/d;/^%$/d'; echo "]") | jq -r '
   .[] |
   [
@@ -179,11 +178,14 @@ _categories="$(calibredb list_categories --csv | sed '/Initialized urlfixer/d;/^
       printf("%s%s  %s\n", c, r, $1)
     }'
 )"
-  elif [[ -n "$SEARCH" || -n "$SORT_BY" ]]; then
+  if [[ -n "$SEARCH" || -n "$SORT_BY" ]]; then
     calibredb_args=(list --for-machine --fields all)
-    [[ -n "$SEARCH" ]] && calibredb_args+=(--search "$SEARCH")
-    [[ -n "$SORT_BY" ]] && calibredb_args+=(--sort-by "$SORT_BY")
-    CALIBRE_DB="$(calibredb_clean "${calibredb_args[@]}")"
+  [[ -n "$SEARCH" ]] && calibredb_args+=(--search "$SEARCH")
+  [[ -n "$SORT_BY" ]] && calibredb_args+=(--sort-by "$SORT_BY")
+
+  titles=$((calibredb "${calibredb_args[@]}" | sed '/Initialized urlfixer/d;/^%$/d'; echo "]") | jq -r '.[].title')
+  [ -z "$titles" ] && notify-send "Calibre" "No results found" && exit 0
+  SKIP_TO_BOOK_SELECTION=1 
   fi
 }
 
@@ -277,7 +279,7 @@ launcher() {
       local fzf_opts_preview=(
         --preview-window=left,35%,wrap
         --bind=right:accept
-        --expect=shift-left,shift-right
+        --expect=shift-left,shift-right #for some reason using this breaks being able to read books
         --tabstop=1
         --preview="$LIB_X_PREVIEW"
       )
@@ -343,6 +345,8 @@ ${CYAN}${RESET}  Add Books From Folder
 ${CYAN}${RESET}  Reload Data
 ${RED}󰈆${RESET}  Exit" )
 action="${action#?  }"
+elif [[ "$SKIP_TO_BOOK_SELECTION" == "1" ]]; then
+	action="Do Nothing"
 else
       action="$GO_DIRECTLY_TO"
       unset GO_DIRECTLY_TO
@@ -445,7 +449,7 @@ clear
   continue
           ;;
    "Reload Data")
-          notify-send "Calibre" "Reloading calibre data" && FORCE_UPDATE_DB="true" reload_calibre_data
+          notify-send "Calibre" "Reloading calibre data" && reload_calibre_data
 	  continue
           ;;
   "Reading"|"Paused"|"Completed"|"Planning"|"Docs"|"Recent")
@@ -461,9 +465,10 @@ if [[ -s "$file" ]]; then
       notify-send "Calibre" "You don't have anything in your ${pretty_name} list"; continue
     fi
     ;;
+      "Do Nothing") : ;;
     *) notify-send "Calibre" 'invalid action'; continue ;;
     esac
-    clear
+    # clear
     # book selection loop
     while true; do
       # ---- select book ----
@@ -609,17 +614,17 @@ while [ $# -gt 0 ]; do
   -h|--help) usage 0 ;;
   -v|--version) echo "$CLI_NAME $CLI_VERSION Copyright © 2024 $CLI_AUTHOR projects"; exit 0 ;;
   -e|--edit-config) $PREFERRED_EDITOR "$CLI_CONFIG_FILE" || exit 1; exit 0 ;;
-  -g|--go-directly-to) [ -n "$2" ] || usage 1; GO_DIRECTLY_TO="$2"; shift ;;
-  -p|--preferred-selector) [ -n "$2" ] || usage 1; PREFERRED_SELECTOR="$2"; shift ;;
+  -g|--go-directly-to) [[ -n "$2" ]] || usage 1; GO_DIRECTLY_TO="$2"; shift ;;
+  -p|--preferred-selector) [[ -n "$2" ]] || usage 1; PREFERRED_SELECTOR="$2"; shift ;;
   --private) UPDATE_RECENT="false" ;;
   -d|--disown-reading-process) DISOWN_READING_PROCESS="true" ;;
   -D|--no-disown-reading-process) DISOWN_READING_PROCESS="false" ;;
   --preview) ENABLE_PREVIEW="true" ;;
   --no-preview) ENABLE_PREVIEW="false" ;;
-  --rofi-theme) [ -n "$2" ] || usage 1; ROFI_THEME="$2"; shift ;;
+  --rofi-theme) [[ -n "$2" ]] || usage 1; ROFI_THEME="$2"; shift ;;
   -r|--no-of-random-books) [[ -n "$2" ]] || usage 1; NO_OF_RANDOM_BOOKS="$2"; GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-Random}"; shift ;;
-  -S|--sort-by) [ -n "$2" ] || usage 1; SORT_BY="$2"; GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-All}"; shift ;;
-  -s|--search) [ -n "$2" ] || usage 1; SEARCH="$2"; GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-All}"; shift ;;
+  -S|--sort-by) [[ -n "$2" ]] || usage 1; SORT_BY="$2"; GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-All}"; shift ;;
+  -s|--search) [[ -n "$2" ]] || usage 1; SEARCH="$2"; GO_DIRECTLY_TO="${GO_DIRECTLY_TO:-All}"; shift ;;
   -E|--generate-desktop-entry)
     echo "
 [Desktop Entry]
