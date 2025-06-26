@@ -1,3 +1,7 @@
+### Fixes 1.8.2
+-Minor memory optimizations. Seems like it helped.  
+-A couple of functionality tweaks.  
+
 ### Fixes 1.8.1
 -Fixed some more minor breakages that I caused including --search and --sort-by functionality for the command line options.  
 
