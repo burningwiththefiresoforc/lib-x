@@ -68,7 +68,7 @@ EOF
 }
 
 load_config() {
-  config_file="$CLI_CONFIG_FILE"
+  local config_file="$CLI_CONFIG_FILE"
   [[ -f "$config_file" ]] || touch "$config_file"
 
   declare -A list_names=(
@@ -103,13 +103,11 @@ load_config() {
       config_content=$(<"$config_file")
   fi
   for key in "${!config_defaults[@]}"; do
-    local value
-    value=$(grep -E "^$key:" <<< "$config_content" | cut -d':' -f2- | sed 's/^[[:space:]]*//')
+    local value=$(grep -E "^$key:" <<< "$config_content" | cut -d':' -f2- | sed 's/^[[:space:]]*//')
     [[ -z "$value" ]] && value="${config_defaults[$key]}"
     export "$key"="$value"
   done
   ROFI_THEME=$(grep -E "^ROFI_THEME:" <<< "$config_content" | cut -d':' -f2- | sed 's/^[[:space:]]*//')
-  export ROFI_THEME
   FZF_DEFAULT_OPTS=${LIBX_FZF_OPTS:-'
     --color=fg:#d0d0d0,fg+:#d0d0d0,bg:#121212,bg+:#262626
     --color=hl:#5f87af,hl+:#5fd7ff,info:#afaf87,marker:#87ff00
@@ -118,7 +116,7 @@ load_config() {
     --border="rounded" --border-label="" --preview-window="border-rounded" --prompt="> "
     --marker=">" --pointer="◆" --separator="─" --scrollbar="│"
   '}
-  export FZF_DEFAULT_OPTS IMAGE_RENDERER
+  export ROFI_THEME FZF_DEFAULT_OPTS IMAGE_RENDERER
 }
 
 LIB_X_PREVIEW=$(printf '%s\n' \
@@ -182,9 +180,8 @@ _categories="$(calibredb list_categories --csv | sed '/Initialized urlfixer/d;/^
     calibredb_args=(list --for-machine --fields all)
   [[ -n "$SEARCH" ]] && calibredb_args+=(--search "$SEARCH")
   [[ -n "$SORT_BY" ]] && calibredb_args+=(--sort-by "$SORT_BY")
-
   titles=$((calibredb "${calibredb_args[@]}" | sed '/Initialized urlfixer/d;/^%$/d'; echo "]") | jq -r '.[].title')
-  [ -z "$titles" ] && notify-send "Calibre" "No results found" && exit 0
+  [[ -z "$titles" ]] && notify-send "Calibre" "No results found" && exit 0
   SKIP_TO_BOOK_SELECTION=1 
   fi
 }
@@ -193,7 +190,7 @@ prompt() {
   local label="$1"
   local default="$2"
   local mode="${3:-0}"
-
+  local selection response
   if [[ "$PREFERRED_SELECTOR" == "rofi" ]]; then
     if [[ "$mode" == "1" ]]; then
       selection=$(printf "No\nYes" | rofi -dmenu -i -p "$label")
@@ -201,7 +198,7 @@ prompt() {
     else
       rofi -dmenu -p "$label: "
     fi
-  elif command -v gum >/dev/null 2>&1; then
+  elif type -P gum >/dev/null 2>&1; then
     if [[ "$mode" == "1" ]]; then
       gum confirm "$label"
     else
@@ -222,7 +219,9 @@ prompt() {
 }
 
 fzf_preview() {
-  file=$1
+	  local file="$1"
+  local tty_size rows cols dim
+
   tty_size=$(stty size </dev/tty)
   rows=${tty_size%% *}
   cols=${tty_size##* }
@@ -234,9 +233,9 @@ fzf_preview() {
     dim=${FZF_PREVIEW_COLUMNS}x$((FZF_PREVIEW_LINES - 1))
   fi
 if [[ "$IMAGE_RENDERER" == "icat" ]]; then
-  if command -v kitten >/dev/null 2>&1; then
+  if type -P kitten >/dev/null 2>&1; then
 kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
-  elif command -v icat >/dev/null 2>&1; then
+  elif type -P icat >/dev/null 2>&1; then
       icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
   else
     if [[ -n "$GHOSTTY_BIN_DIR" ]]; then
@@ -245,14 +244,14 @@ kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --pl
       kitty icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed '$d' | sed "$(printf "\$s/\$/\033[m/")"
     fi
   fi
-elif command -v chafa >/dev/null 2>&1; then
+elif type -P chafa >/dev/null 2>&1; then
     case "$PLATFORM" in
     android) chafa -s "$dim" "$file" ;;
     windows) chafa -f sixel -s "$dim" "$file" ;;
     *) chafa -s "$dim" "$file" ;;
     esac
     echo
-  elif command -v imgcat >/dev/null; then
+  elif type -P imgcat >/dev/null; then
     imgcat -W "${dim%%x*}" -H "${dim##*x}" "$file"
   else
     echo "please install a terminal image viewer" >&2
@@ -263,23 +262,19 @@ elif command -v chafa >/dev/null 2>&1; then
 launcher() {
   case "$PREFERRED_SELECTOR" in
     rofi)
-      rofi_args=(-sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Selection:" -sorting-method fzf)
+      local rofi_args=(-sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "Selection:" -sorting-method fzf)
       [[ -n "$ROFI_THEME" ]] && rofi_args=(-no-config -theme "$ROFI_THEME" "${rofi_args[@]}")
       sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g' | rofi "${rofi_args[@]}"
       ;;
     fzf)
       local fzf_opts_base=(
-        --info=hidden
-        --layout=reverse
-        --height=100%
+        --info=hidden --layout=reverse --height=100%
         --prompt="Selection: "
         --header-first --header="$CLI_HEADER"
-        --exact --cycle --ansi
+        --bind=right:accept --exact --cycle --ansi
       )
       local fzf_opts_preview=(
         --preview-window=left,35%,wrap
-        --bind=right:accept
-        --expect=shift-left,shift-right #for some reason using this breaks being able to read books
         --tabstop=1
         --preview="$LIB_X_PREVIEW"
       )
@@ -305,7 +300,7 @@ user_lists_manager() {
 [[ -z "$db_file" ]] && notify-send "Calibre" "Unknown list: $list_name" && return 1
   case "$action" in
     "Add To List")
-      if grep -qs "^${title}\$" "$db_file"; then
+      if grep -qsF "^${title}\$" "$db_file"; then
         notify-send "Calibre" "Already in $list_name list."
       else
         notify-send "Calibre" "Added to $list_name list."
@@ -313,10 +308,10 @@ user_lists_manager() {
       fi
       ;;
     "Remove From List")
-      if grep -q "^$title\$" "$db_file"; then
+      if grep -qF "^$title\$" "$db_file"; then
         if prompt "Are you sure you want to remove '$title' from $list_name List?" "" 1; then
           notify-send "Calibre" "Removed from $list_name list."
-          updated_list="$(grep -v "^$title\$" "$db_file")"
+          local updated_list="$(grep -v "^$title\$" "$db_file")"
           printf "%s\n" "$updated_list" | grep -E '[[:alnum:]]+' > "$db_file"
         fi
       else
@@ -372,7 +367,7 @@ else
   *)             notify-send "Calibre" "Unknown field: $action"; continue ;;
 esac
 
-value=$(awk -F'\t' -v col="$col" -v field="$action" '
+local value=$(awk -F'\t' -v col="$col" -v field="$action" '
   {
     split($col, parts, /;[ ]*/)
     for (i in parts) {
@@ -441,9 +436,10 @@ continue
           fi
             clear
             calibredb add --help
-            custom_args=$(prompt "Enter your custom args separated by spaces (default: calibre_db add '$books_path')" "")
-	    if prompt "Would you like to proceed in adding books? [y/n]" "" 1; then
-  calibredb add "$books_path" "$custom_args" || notify-send "Calibre" "Failed to add books"
+	    local custom_args
+	    read -r -a custom_args <<< "$(prompt "Enter your custom args separated by spaces (default: calibre_db add '$books_path')" "")"
+if prompt "Would you like to proceed in adding books? [y/n]" "" 1; then
+    calibredb add "$books_path" "${custom_args[@]}" || notify-send "Calibre" "Failed to add books"
 fi
 clear
   continue
@@ -453,35 +449,32 @@ clear
 	  continue
           ;;
   "Reading"|"Paused"|"Completed"|"Planning"|"Docs"|"Recent")
-    normalized_action="${action//[- ]/_}"
-    normalized_action="${normalized_action^^}"
-    var_name="DB_${normalized_action}_LIST"
-    file="${!var_name}"
+    action="${action^^}"
+    local var_name="DB_${action}_LIST"
+    local file="${!var_name}"
 if [[ -s "$file" ]]; then
     titles="$(<"$file")"
-    [[ "$action" == "Recent" ]] && titles="$(tac "$file")"
+    [[ "$action" == "RECENT" ]] && titles="$(tac "$file")"
     else
-	    pretty_name="${action,,}"
-      notify-send "Calibre" "You don't have anything in your ${pretty_name} list"; continue
+      notify-send "Calibre" "You don't have anything in your ${action,,} list"; continue
     fi
     ;;
       "Do Nothing") : ;;
     *) notify-send "Calibre" 'invalid action'; continue ;;
     esac
-    # clear
+    clear
     # book selection loop
     while true; do
       # ---- select book ----
 export SHELL="bash"
 export -f fzf_preview
-launcher_flag=$([[ "$ENABLE_PREVIEW" == "true" ]] && echo 1 || echo 0)
-title=$(launcher "$launcher_flag" <<< "$(printf '%s\nBack\nExit\n' "$titles")" | tr -d '\n')
+local launcher_flag=$([[ "$ENABLE_PREVIEW" == "true" ]] && echo 1 || echo 0)
+title=$(launcher "$launcher_flag" <<< "$(printf '%s\nBack\nExit\n' "$titles")" | tr -d '\n' | sed 's/"/\\"/g')
 case "$title" in
   "Exit") exit 0 ;;
   "Back"|"") break ;;
 esac
 clear
-book=$(printf '%s' "$title" | sed 's/"/\\"/g')
            # ---- book actions ----
       while true; do
 	      action=$( launcher 0 <<< "${CYAN}${RESET}  Read
@@ -498,12 +491,13 @@ action="${action#?  }"
         "Read"|"Open Folder")
           # update recent list
           if [[ "$UPDATE_RECENT" == "true" ]]; then
-		  updated_recent_file_contents="$(awk -v t="$title" -v n="$NO_OF_RECENT" '$0!=t && /[[:alnum:]]/{lines[++c]=$0} END{for(i=c-n+1;i<=c;i++) if(i>0) print lines[i]}' "$DB_RECENT_LIST")"
+		  local updated_recent_file_contents="$(awk -v t="$title" -v n="$NO_OF_RECENT" '$0!=t && /[[:alnum:]]/{lines[++c]=$0} END{for(i=c-n+1;i<=c;i++) if(i>0) print lines[i]}' "$DB_RECENT_LIST")"
             printf "%s\n" "$updated_recent_file_contents" > "$DB_RECENT_LIST"
             printf "%s\n" "$title" >> "$DB_RECENT_LIST"
           fi
           # open book or folder
-	  book_path="$(awk -F'\t' -v title="$book" '$2 == title {print $13; exit}' "$CACHE_FILE")"
+	  local book_path="$(awk -F'\t' -v title="$title" '$2 == title {print $13; exit}' "$CACHE_FILE")"
+	  local opener
 if [[ "$action" == "Read" ]]; then
 if opener=$(command -v open || command -v xdg-open); then
   "$opener" "$book_path" &>/dev/null &
@@ -511,7 +505,7 @@ else
   notify-send "Calibre" "No supported reader found"
 fi
   else
-	dir_path="$(dirname "$book_path")"
+	local dir_path="$(dirname "$book_path")"
 [[ -d "$dir_path" ]] && "$FILE_EXPLORER" "$dir_path" || notify-send "Calibre" "Folder not found: $dir_path"
 	  fi
           # disown
@@ -519,16 +513,16 @@ fi
           [[ "$DISOWN_READING_PROCESS" == "true"  &&  "${PREFERRED_SELECTOR,,}" == "fzf" ]] && disown
           ;;
          "Add To List" | "Remove From List")
-		 list_target=$(launcher 0 <<< $'Reading\nPlanning\nDocs\nCompleted\nRecent')
+		 local list_target=$(launcher 0 <<< $'Reading\nPlanning\nDocs\nCompleted\nRecent')
   user_lists_manager "$list_target" "$action"
   ;; 
         "Remove Book")
-		book_id="$(awk -F'\t' -v title="$book" '$2 == title {print $1; exit}' "$CACHE_FILE")"
+		local book_id="$(awk -F'\t' -v title="$title" '$2 == title {print $1; exit}' "$CACHE_FILE")"
           prompt "Are you sure you want to remove $title?" "" 1 
 	  calibredb remove "$book_id" && notify-send "Calibre" "Successfully removed"
           ;;
   "Edit Metadata")
-      metadata_field=$( launcher 0 <<< "author_sort
+      action=$( launcher 0 <<< "author_sort
 authors
 comments
 cover
@@ -547,12 +541,12 @@ timestamp
 title
 title_sort
 Cancel" )
-	[[ -z "$metadata_field" || "$metadata_field" == "Cancel" || $? -ne 0 ]] && notify-send "Calibre" "Metadata editing canceled." && continue
-	book_id="$(awk -F'\t' -v title="$book" '$2 == title {print $1; exit}' "$CACHE_FILE")"
+	[[ -z "$action" || "$action" == "Cancel" || $? -ne 0 ]] && notify-send "Calibre" "Metadata editing canceled." && continue
+	local book_id="$(awk -F'\t' -v title="$title" '$2 == title {print $1; exit}' "$CACHE_FILE")"
 	calibredb show_metadata "$book_id"
-	metadata_val=$(prompt "Enter new value for $metadata_field" "")
+	local metadata_val=$(prompt "Enter new value for $action" "")
 	[[ -z "$metadata_val" ]] && notify-send "Calibre" "No value entered. Not updated." && continue
-	calibredb set_metadata "$book_id" --field "$metadata_field:$metadata_val"
+	calibredb set_metadata "$book_id" --field "$action:$metadata_val"
 	calibredb backup_metadata
 	reload_calibre_data
 	;;  
@@ -606,14 +600,18 @@ Options:
   "
 }
 
+for dep in calibre jq fzf; do
+  type "$dep" &>/dev/null || { echo "$dep is required but not installed." >&2; exit 1; }
+done
+
 load_config
 [[ ! -s "$CLI_CONFIG_FILE" ]] && print_config > "$CLI_CONFIG_FILE"
 
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
   -h|--help) usage 0 ;;
   -v|--version) echo "$CLI_NAME $CLI_VERSION Copyright © 2024 $CLI_AUTHOR projects"; exit 0 ;;
-  -e|--edit-config) $PREFERRED_EDITOR "$CLI_CONFIG_FILE" || exit 1; exit 0 ;;
+  -e|--edit-config) "$PREFERRED_EDITOR" "$CLI_CONFIG_FILE" || exit 1; exit 0 ;;
   -g|--go-directly-to) [[ -n "$2" ]] || usage 1; GO_DIRECTLY_TO="$2"; shift ;;
   -p|--preferred-selector) [[ -n "$2" ]] || usage 1; PREFERRED_SELECTOR="$2"; shift ;;
   --private) UPDATE_RECENT="false" ;;
@@ -628,9 +626,9 @@ while [ $# -gt 0 ]; do
   -E|--generate-desktop-entry)
     echo "
 [Desktop Entry]
-Name=$CLI_NAME
+Name="$CLI_NAME"
 Type=Application
-version=$CLI_VERSION
+version="$CLI_VERSION"
 Path=$HOME
 Comment=Read and manage your calibre books from the terminal
 Terminal=false
@@ -646,7 +644,4 @@ Categories=Education
 done
 
 reload_calibre_data
-for dep in calibre jq fzf; do
-  type "$dep" &>/dev/null || { echo "$dep is required but not installed." >&2; exit 1; }
-done
 main
