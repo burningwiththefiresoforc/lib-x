@@ -1,3 +1,7 @@
+### Fixes 1.8.3
+-Upgraded prompts for fzf a little bit
+-More tweaks and little memory optimizations
+
 ### Fixes 1.8.2
 -Minor memory optimizations. Seems like it helped.  
 -A couple of functionality tweaks.  
