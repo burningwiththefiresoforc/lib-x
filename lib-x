@@ -50,7 +50,7 @@ NO_OF_RECENT: $NO_OF_RECENT
 # the path to the calibre library
 CALIBRE_LIBRARY_PATH: $CALIBRE_LIBRARY_PATH
 
-# the image renderer to use
+# the image renderer to use. Options: icat (kitty only), imgcat (wezterm), chafa
 IMAGE_RENDERER: $IMAGE_RENDERER
 
 # whether to disown the reading process
@@ -143,7 +143,7 @@ reload_calibre_data() {
     RESET=$(tput sgr0)
     export RED MAGENTA BOLD_LIB_X RESET CYAN
   fi
-	      (calibredb list --for-machine --fields all | sed '/Initialized urlfixer/d;/^%$/d'; echo "]") | jq -r '
+	      calibredb list --for-machine --fields all | jq -r '
   .[] |
   [
     (.id // "-" | tostring | if . == "" then "-" else . end),
@@ -161,7 +161,7 @@ reload_calibre_data() {
     (.formats[0] | gsub("[\t\n\r]"; " "))
   ] | @tsv
 ' > "$CACHE_FILE" 
-_categories="$(calibredb list_categories --csv | sed '/Initialized urlfixer/d;/^%$/d' |
+_categories="$(calibredb list_categories --csv |
   awk -F, -v c="$CYAN" -v r="$RESET" '
     NR > 1 && !seen[$1]++ {
       $1 = toupper(substr($1,1,1)) substr($1,2)
@@ -172,7 +172,7 @@ _categories="$(calibredb list_categories --csv | sed '/Initialized urlfixer/d;/^
     calibredb_args=(list --for-machine --fields all)
   [[ -n "$SEARCH" ]] && calibredb_args+=(--search "$SEARCH")
   [[ -n "$SORT_BY" ]] && calibredb_args+=(--sort-by "$SORT_BY")
-  titles=$((calibredb "${calibredb_args[@]}" | sed '/Initialized urlfixer/d;/^%$/d'; echo "]") | jq -r '.[].title')
+  titles=$(calibredb "${calibredb_args[@]}" | jq -r '.[].title')
   [[ -z "$titles" ]] && notify-send "Calibre" "No results found" && exit 0
   SKIP_TO_BOOK_SELECTION=1 
   fi
@@ -197,15 +197,14 @@ prompt() {
       gum input --header "$CLI_HEADER" --prompt "$label: " --value "$default"
     fi
   else
-        if [[ "$mode" == "1" ]]; then
-      selection=$(printf "No\nYes" | fzf --prompt="$label: " --height=10% --layout=reverse --border --ansi)
-      [[ "$selection" == "Yes" ]]
-    else
-	    echo "$CLI_HEADER" >&2
-response=$(fzf --prompt="$label: " --print-query --height=10% --layout=reverse --border <<< "")
-input=$(echo "$response" | head -n1)
-echo "$input"
-    fi
+	  if [[ "$mode" == "1" ]]; then
+  selection=$(printf "No\nYes" | fzf --prompt="$label: " --height=15% --min-height=3 --layout=reverse --border --ansi --info=hidden)
+  [[ "$selection" == "Yes" ]]
+else
+  response=$(fzf --prompt="$label: " --print-query --height=10% --min-height=1 --layout=reverse --border --info=hidden <<< "")
+  input=$(echo "$response" | head -n1)
+  echo "$input"
+fi
   fi
 }
 
@@ -215,37 +214,22 @@ fzf_preview() {
   local rows=${tty_size%% *}
   local cols=${tty_size##* }
   local dim=${FZF_PREVIEW_COLUMNS}x${FZF_PREVIEW_LINES}
-  if [[ "$dim" == "x" ]]; then
-	  dim="${cols}x${rows}"
-  fi
-  if [[ "$IMAGE_RENDERER" != "icat" && -z "$KITTY_WINDOW_ID" && "$((FZF_PREVIEW_TOP + FZF_PREVIEW_LINES))" -eq "$rows" ]]; then
-    dim=${FZF_PREVIEW_COLUMNS}x$((FZF_PREVIEW_LINES - 1))
-  fi
-if [[ "$IMAGE_RENDERER" == "icat" ]]; then
-  if type -P kitten >/dev/null 2>&1; then
-kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
-  elif type -P icat >/dev/null 2>&1; then
-      icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
-  else
-    if [[ -n "$GHOSTTY_BIN_DIR" ]]; then
-      chafa -s "$dim" "$file"
-    else
-      kitty icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed '$d' | sed "$(printf "\$s/\$/\033[m/")"
-    fi
-  fi
-elif type -P chafa >/dev/null 2>&1; then
-    case "$PLATFORM" in
-    android) chafa -s "$dim" "$file" ;;
-    windows) chafa -f sixel -s "$dim" "$file" ;;
-    *) chafa -s "$dim" "$file" ;;
-    esac
-    echo
-  elif type -P imgcat >/dev/null; then
-    imgcat -W "${dim%%x*}" -H "${dim##*x}" "$file"
-  else
-    echo "please install a terminal image viewer" >&2
-    echo "either icat for kitty terminal and wezterm or imgcat or chafa" >&2
-  fi
+  [[ "$dim" == "x" ]] && dim="${cols}x${rows}"
+  [[ "$IMAGE_RENDERER" != "icat" && -z "$KITTY_WINDOW_ID" && "$((FZF_PREVIEW_TOP + FZF_PREVIEW_LINES))" -eq "$rows" ]] && dim=${FZF_PREVIEW_COLUMNS}x$((FZF_PREVIEW_LINES - 1))
+
+case "$IMAGE_RENDERER" in  
+"icat")
+	if type kitten >/dev/null 2>&1; then
+  	icat_cmd=(kitten icat)
+	else
+  	icat_cmd=(kitty icat)
+	fi
+"${icat_cmd[@]}" --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed '$d' | sed "$(printf "\$s/\$/\033[m/")"
+;;
+"chafa") chafa -s "$dim" "$file" ;;
+"imgcat") imgcat -W "${dim%%x*}" -H "${dim##*x}" "$file" ;;
+*)   echo "Please install a terminal image viewer. Either icat for kitty terminal, imgcat for wezterm, or chafa." >&2 ;;
+esac
 }
 
 launcher() {
@@ -419,7 +403,7 @@ continue
             notify-send "Calibre" "Unsupported file explorer"; continue
           fi
             clear
-            calibredb add --help
+            calibredb add --help | less
 	    local custom_args
 	    read -r -a custom_args <<< "$(prompt "Enter your custom args separated by spaces (default: calibre_db add '$books_path')" "")"
 if prompt "Would you like to proceed in adding books?" "" 1; then

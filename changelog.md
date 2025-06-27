@@ -1,3 +1,9 @@
+### Fixes 1.8.4
+-Apparently the weird calibredb outputs of "Initialized urlfixer" that I was getting were because of a stray debug line in the Wikidata plugin contaminating all of my calibredb outputs. I removed my bandaids.  
+-More refactoring and removing some stuff that doesn't seem like it was ever implemented.  
+-Piped the calibredb add args information into less, which is now an optional dependency.  
+-fzf prompts are now a little bit prettier.  
+
 ### Fixes 1.8.3
 -Upgraded prompts for fzf a little bit
 -More tweaks and little memory optimizations
