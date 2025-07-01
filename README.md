@@ -7,10 +7,10 @@
 
 A TUI wrapper over the calibredb
 
-# Fork Notes
-- The aim of this fork is to optimize the script somewhat and fix some of the functionality that seemed broken. I have only tested this with rofi and fzf + kitty, Calibre 8.5, Debian 13. If you're getting parse errors with jq, it may be because of the Wikidata plugin which prints some debug stuff into the calibredb outputs. Disabling it will not work, it either has to be removed or the line that prints "Urlfixer initialized" commented out in the urlfixer.py script within the plugin zip archive.
-
 [lib-x-all.webm](https://github.com/user-attachments/assets/58690f9f-b239-4c84-9175-f17b8c6d2293)
+# Fork Notes
+- The aim of this fork is to optimize the script somewhat and fix some of the functionality that seemed broken. I have only tested this with rofi and fzf + kitty, Calibre 8.5, Debian 13. The original version of this script was limited by a very large number of jq and calibredb calls, but with preprocessing the main limitation will be library size. It is close to instantaneous navigating through a library of 600+ books on my old laptop after the initial loading phase.  
+-If you're getting parse errors with jq, it may be because of the Wikidata plugin which prints some debug stuff into the calibredb outputs. Disabling it will not work, it either has to be removed or the line that prints "Urlfixer initialized" commented out in the urlfixer.py script within the plugin zip archive.
 
 # Installation
 ![Linux/BSD](https://img.shields.io/badge/-Linux/BSD-red.svg?style=for-the-badge&logo=linux)

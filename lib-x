@@ -64,6 +64,10 @@ FILE_EXPLORER: $FILE_EXPLORER
 
 # preferred terminal when using rofi
 PREFERRED_TERMINAL: $PREFERRED_TERMINAL
+
+#rofi theme
+ROFI_THEME: $ROFI_THEME
+
 EOF
 }
 
@@ -78,7 +82,7 @@ for category in Reading Recent Completed Docs Planning; do
   export "$var_name=$path"
 done
 
-  declare -A config_defaults=(
+declare -A config_defaults=(
     ["CALIBRE_LIBRARY_PATH"]="$HOME/Calibre Library"
     ["PRETTY_PRINT"]="true"
     ["FILE_EXPLORER"]="$(type -P yazi &>/dev/null && echo yazi || echo fzf)"
@@ -91,15 +95,21 @@ done
     ["NO_OF_RECENT"]="30"
     ["NO_OF_RANDOM_BOOKS"]="30"
     ["PREFERRED_TERMINAL"]="kitty"
+    ["ROFI_THEME"]=""
   )
 
+  declare -A file_config
+  while IFS=':' read -r key value; do
+    key=$(echo "$key" | tr -d '[:space:]')
+    value=$(echo "$value" | sed 's/^[[:space:]]*//')
+    [[ -n "$key" ]] && file_config["$key"]="$value"
+  done < "$CLI_CONFIG_FILE"
+
   for key in "${!config_defaults[@]}"; do
-    value=$(grep -E "^$key:" "$CLI_CONFIG_FILE" | cut -d':' -f2- | sed 's/^[[:space:]]*//')
-    [[ -z "$value" ]] && value="${config_defaults[$key]}"
+    value="${file_config[$key]:-${config_defaults[$key]}}"
     export "$key"="$value"
   done
 
-  ROFI_THEME=$(grep -E "^ROFI_THEME:" "$CLI_CONFIG_FILE" | cut -d':' -f2- | sed 's/^[[:space:]]*//')
   FZF_DEFAULT_OPTS=${LIBX_FZF_OPTS:-'
     --color=fg:#d0d0d0,fg+:#d0d0d0,bg:#121212,bg+:#262626
     --color=hl:#5f87af,hl+:#5fd7ff,info:#afaf87,marker:#87ff00
@@ -108,7 +118,15 @@ done
     --border="rounded" --border-label="" --preview-window="border-rounded" --prompt="> "
     --marker=">" --pointer="◆" --separator="─" --scrollbar="│"
   '}
-  export ROFI_THEME FZF_DEFAULT_OPTS IMAGE_RENDERER
+  export FZF_DEFAULT_OPTS
+  if [[ "$PRETTY_PRINT" == "true" ]]; then
+    RED=$(tput setaf 1)
+    MAGENTA="\x1b[38;2;215;0;95m"
+    CYAN=$(tput setaf 6)
+    BOLD_LIB_X=$(tput bold)
+    RESET=$(tput sgr0)
+    export RED MAGENTA BOLD_LIB_X RESET CYAN
+  fi
 }
 
 LIB_X_PREVIEW=$(printf '%s\n' \
@@ -118,6 +136,7 @@ LIB_X_PREVIEW=$(printf '%s\n' \
 '    awk -F"\t" -v title="$esc_title" '\''$2 == title {print; exit}'\'' '"$CACHE_FILE"' );' \
 '' \
 '  [[ -s "$book_cover" ]] && fzf_preview "$book_cover";' \
+'  hr() { printf '\''%*s\n'\'' "$FZF_PREVIEW_COLUMNS" "" | tr " " "─"; }' \
 '' \
 '  for ((i = 0; i < FZF_PREVIEW_COLUMNS; i++)); do echo -n "─"; done; echo;' \
 '  printf "${MAGENTA}${BOLD_LIB_X}Title:${RESET} %s\n" "$book_title";' \
@@ -135,32 +154,29 @@ launch_in_terminal() { "$PREFERRED_TERMINAL" -e "$@"; }
 #add functionality for other terminals
 
 reload_calibre_data() {
-  if [[ "$PRETTY_PRINT" == "true" ]]; then
-    RED=$(tput setaf 1)
-    MAGENTA="\x1b[38;2;215;0;95m"
-    CYAN=$(tput setaf 6)
-    BOLD_LIB_X=$(tput bold)
-    RESET=$(tput sgr0)
-    export RED MAGENTA BOLD_LIB_X RESET CYAN
-  fi
-	      calibredb list --for-machine --fields all | jq -r '
+  calibredb list --for-machine --fields "id,title,authors,publisher,tags,formats,comments,series,rating,cover,languages,identifiers" | jq -r '
   .[] |
+  . as $b |
+  ($b.formats // []) as $f |
+  ($b.tags // []) as $t |
+  ($b.languages // []) as $l |
+  ($b.identifiers // {}) as $i |
   [
-    (.id // "-" | tostring | if . == "" then "-" else . end),
-    (.title // "-" | gsub("[\t\n\r]"; " ") | if . == "" then "-" else . end),
-    (.authors // "-" | gsub("[\t\n\r]"; " ") | gsub(" +& +| +and +"; "; ") | if . == "" then "-" else . end),
-    (if (.tags and (.tags | length) > 0) then (.tags | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
-    (if (.cover and (.cover | tostring) != "") then (.cover | gsub("[\t\n\r]"; " ")) else "-" end),
-    (if (.comments and (.comments | tostring) != "") then (.comments | gsub("<[^>]+>"; "") | gsub("[\t\n\r]"; " ") | if . == "null" or . == "" then "-" else . end) else "-" end),
-    (if (.languages and (.languages | length) > 0) then (.languages | map(ascii_upcase) | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
-    (if (.formats and (.formats | length) > 0) then (.formats | map(split(".")[-1] | ascii_upcase) | join("; ")) else "-" end),
-    (if (.series and (.series | length) > 0) then (.series | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
-    (if (.rating and (.rating | tostring) != "") then (.rating | tostring) else "-" end),
-    (.publisher // "-" | gsub("[\t\n\r]"; " ") | if . == "" then "-" else . end),
-    (if (.identifiers and (.identifiers | length) > 0) then (.identifiers | to_entries | map("\(.key):\(.value)") | join("; ")) else "-" end),
-    (.formats[0] | gsub("[\t\n\r]"; " "))
+    ($b.id // "-" | tostring | select(. != "") // "-"),
+    ($b.title // "-" | gsub("[\t\n\r]"; " ") | select(. != "") // "-"),
+    ($b.authors // "-" | gsub("[\t\n\r]"; " ") | gsub(" +& +| +and +"; "; ") | select(. != "") // "-"),
+    (if $t != [] then ($t | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
+    (if $b.cover then ($b.cover | tostring | gsub("[\t\n\r]"; " ")) else "-" end),
+    (if $b.comments then ($b.comments | tostring | gsub("<[^>]+>"; "") | gsub("[\t\n\r]"; " ") | select(. != "null" and . != "") // "-") else "-" end),
+    (if $l != [] then ($l | map(ascii_upcase) | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
+    (if $f != [] then ($f | map(split(".")[-1] | ascii_upcase) | join("; ")) else "-" end),
+    (if ($b.series | length) > 0 then ($b.series | join("; ") | gsub("[\t\n\r]"; " ")) else "-" end),
+    ($b.rating | tostring // "-"),
+    ($b.publisher // "-" | gsub("[\t\n\r]"; " ") | select(. != "") // "-"),
+    (if ($i | length) > 0 then ($i | to_entries | map("\(.key):\(.value)") | join("; ")) else "-" end),
+    (if $f != [] then ($f[0] | gsub("[\t\n\r]"; " ")) else "-" end)
   ] | @tsv
-' > "$CACHE_FILE" 
+' > "$CACHE_FILE"
 _categories="$(calibredb list_categories --csv |
   awk -F, -v c="$CYAN" -v r="$RESET" '
     NR > 1 && !seen[$1]++ {
@@ -202,7 +218,7 @@ prompt() {
   [[ "$selection" == "Yes" ]]
 else
   response=$(fzf --prompt="$label: " --print-query --height=10% --min-height=1 --layout=reverse --border --info=hidden <<< "")
-  input=$(echo "$response" | head -n1)
+  input=$(echo head -n1 <<< "$response" )
   echo "$input"
 fi
   fi
@@ -210,9 +226,8 @@ fi
 
 fzf_preview() {
   local file="$1"
-  local tty_size=$(stty size </dev/tty)
-  local rows=${tty_size%% *}
-  local cols=${tty_size##* }
+  local rows cols
+  read -r rows cols <<< "$(stty size </dev/tty)"
   local dim=${FZF_PREVIEW_COLUMNS}x${FZF_PREVIEW_LINES}
   [[ "$dim" == "x" ]] && dim="${cols}x${rows}"
   [[ "$IMAGE_RENDERER" != "icat" && -z "$KITTY_WINDOW_ID" && "$((FZF_PREVIEW_TOP + FZF_PREVIEW_LINES))" -eq "$rows" ]] && dim=${FZF_PREVIEW_COLUMNS}x$((FZF_PREVIEW_LINES - 1))
@@ -224,7 +239,7 @@ case "$IMAGE_RENDERER" in
 	else
   	icat_cmd=(kitty icat)
 	fi
-"${icat_cmd[@]}" --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed '$d' | sed "$(printf "\$s/\$/\033[m/")"
+"${icat_cmd[@]}" --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed -e '$d' -e "$(printf "\$s/\$/\033[m/")"
 ;;
 "chafa") chafa -s "$dim" "$file" ;;
 "imgcat") imgcat -W "${dim%%x*}" -H "${dim##*x}" "$file" ;;
@@ -279,8 +294,7 @@ user_lists_manager() {
       if grep -qxF -- "$title" "$db_file"; then
         if prompt "Are you sure you want to remove '$title' from $list_name List?" "" 1; then
           notify-send "Calibre" "Removed from $list_name list."
-          local updated_list="$(grep -v "^$title\$" "$db_file")"
-          printf "%s\n" "$updated_list" | grep -E '[[:alnum:]]+' > "$db_file"
+          sed -i "/^${title}\$/d" "$db_file"
         fi
       else
         notify-send "Calibre" "'$title' is not in your $list_name list"
@@ -580,6 +594,7 @@ for dep in calibre jq fzf; do
   type "$dep" &>/dev/null || { echo "$dep is required but not installed." >&2; exit 1; }
 done
 
+notify-send -t 1500 "Calibre" "Loading database."
 load_config
 [[ ! -s "$CLI_CONFIG_FILE" ]] && print_config > "$CLI_CONFIG_FILE"
 
@@ -620,4 +635,5 @@ Categories=Education
 done
 
 reload_calibre_data
+notify-send -t 1500 "Calibre" "Done"
 main

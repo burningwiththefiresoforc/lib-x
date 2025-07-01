@@ -1,3 +1,7 @@
+### Fixes 1.8.5
+-Attempted to speed up the initial database load.  
+-Readded option "ROFI_THEME"  
+
 ### Fixes 1.8.4
 -Apparently the weird calibredb outputs of "Initialized urlfixer" that I was getting were because of a stray debug line in the Wikidata plugin contaminating all of my calibredb outputs. I removed my bandaids.  
 -More refactoring and removing some stuff that doesn't seem like it was ever implemented.  
