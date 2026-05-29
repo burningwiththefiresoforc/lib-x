@@ -10,12 +10,12 @@ A TUI wrapper over the calibredb
 [lib-x-all.webm](https://github.com/user-attachments/assets/58690f9f-b239-4c84-9175-f17b8c6d2293)
 # Fork Notes
 - The aim of this fork is to optimize the script somewhat and fix some of the functionality that seemed broken. I have only tested this with rofi and fzf + kitty, Calibre 8.5, Debian 13. The original version of this script was limited by a very large number of jq and calibredb calls, but with preprocessing the main limitation will be library size. It is close to instantaneous navigating through a library of 600+ books on my old laptop after the initial loading phase.  
--If you're getting parse errors with jq, it may be because of the Wikidata plugin which prints some debug stuff into the calibredb outputs. Disabling it will not work, it either has to be removed or the line that prints "Urlfixer initialized" commented out in the urlfixer.py script within the plugin zip archive.
+- If you're getting parse errors with jq, it may be because of the Wikidata plugin which prints some debug stuff into the calibredb outputs. Disabling it will not work, it either has to be removed or the line that prints "Urlfixer initialized" commented out in the urlfixer.py script within the plugin zip archive.
 
 # Installation
 ![Linux/BSD](https://img.shields.io/badge/-Linux/BSD-red.svg?style=for-the-badge&logo=linux)
 ![Arch Linux](https://img.shields.io/badge/-Arch_Linux-black.svg?style=for-the-badge&logo=archlinux)
-![MacOS](https://img.shields.io/badge/-MacOS-lightblue.svg?style=for-the-badge&logo=apple)
+![MacOS](https://img.shields.io/badge/-MacOS-lightblue.svg?style=for-the-badge&logo=apple) -- This is most likely not compatible with this fork.
 
 ```bash
 curl -sL https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x -o ~/.local/bin/lib-x && chmod +x ~/.local/bin/lib-x
@@ -27,13 +27,19 @@ curl -sL https://raw.githubusercontent.com/Benexl/lib-x/refs/heads/master/lib-x 
 
 - [calibre](https://calibre-ebook.com/) - for the database
 - [jq](https://jqlang.github.io/jq/)- to pass the json data
-- [fzf](https://github.com/junegunn/fzf) - for the main ui
+- [fzf](https://github.com/junegunn/fzf) or rofi - for the main ui
+
+**works best with:**
+
+- less (for viewing calibredb options)
+- dunst or some other notification daemon (alerts depend on notify-send)
+- kitty + icat (for fzf preview)
   
 **optional:**
+
 - [yazi](https://github.com/charmbracelet/gum) - better file explorer
 - [gum](https://github.com/charmbracelet/gum) - for an even better ui
-- less
-- dunst or some other notification daemon
+- chafa or imgcat
 
 # Usage
 
